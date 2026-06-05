@@ -235,7 +235,28 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-const BASE = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
+const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
+// Proxy CORS pour GitHub Pages et toute origine externe
+// corsproxy.io ajoute le header Access-Control-Allow-Origin manquant
+const PROXY = 'https://corsproxy.io/?url=';
+
+function buildUrl(params) {
+  const qs = Object.entries(params)
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+    .join('&');
+  return PROXY + encodeURIComponent(ADEME + '?' + qs);
+}
+
+function buildUrlRaw(rawParams) {
+  return PROXY + encodeURIComponent(ADEME + '?' + rawParams);
+}
+
+function displayUrl(params) {
+  const qs = Object.entries(params)
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+    .join('&');
+  return ADEME + '?' + qs;
+}
 
 const RAW_EXAMPLES = [
   { label: 'Paris 1er arrdt',   q: 'q=75001&q_fields=Code_postal_ban&select=N°_DPE,Etiquette_DPE,Surface_habitable_logement,Nom_commune_brut,Type_bâtiment&size=10' },
@@ -305,8 +326,9 @@ async function apiFetch(url, btnId, statusId) {
 async function searchDpe() {
   const num = document.getElementById('inp-dpe').value.trim();
   if (!num) return;
-  const url = `${BASE}?q=${encodeURIComponent(num)}&q_fields=N°_DPE&size=1`;
-  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>' + url + '</span>';
+  const params = { q: num, q_fields: 'N°_DPE', size: '1' };
+  const url = buildUrl(params);
+  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
   const data = await apiFetch(url, 'btn-search', 'search');
   if (!data) return;
   const el = document.getElementById('result-search');
@@ -390,8 +412,9 @@ async function loadStats() {
   const size = document.getElementById('inp-size').value;
   if (!cp) return;
   const fields = 'N°_DPE,Etiquette_DPE,Etiquette_GES,Surface_habitable_logement,Type_bâtiment,Conso_5_usages_é_finale,Emission_GES_5_usages_m2,Type_énergie_principale_chauffage,Période_construction,Nom_commune_brut';
-  const url = `${BASE}?qs=Code_postal_ban:${cp}&select=${fields}&size=${size}`;
-  document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + url + '</span>';
+  const params = { qs: 'Code_postal_ban:' + cp, select: fields, size: size };
+  const url = buildUrl(params);
+  document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
   const data = await apiFetch(url, 'btn-stats', 'stats');
   if (!data?.results) return;
   renderStats(data, cp);
@@ -490,11 +513,11 @@ function buildChips() {
 
 function updateRawUrl() {
   const p = document.getElementById('inp-raw').value;
-  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + BASE + '?' + p + '</span>';
+  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + ADEME + '?' + p + '</span>';
 }
 
 function copyRawUrl() {
-  const url = BASE + '?' + document.getElementById('inp-raw').value;
+  const url = ADEME + '?' + document.getElementById('inp-raw').value;
   navigator.clipboard.writeText(url).then(() => {
     setStatus('raw', 'ok', '✔ URL copiée dans le presse-papier');
     setTimeout(() => clearStatus('raw'), 2000);
@@ -503,7 +526,9 @@ function copyRawUrl() {
 
 async function runRaw() {
   const p = document.getElementById('inp-raw').value.trim();
-  const url = BASE + '?' + p;
+  const displayRawUrl = ADEME + '?' + p;
+  const url = buildUrlRaw(p);
+  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + displayRawUrl + '</span>';
   const data = await apiFetch(url, 'btn-raw', 'raw');
   if (!data) return;
   const el = document.getElementById('result-raw');
