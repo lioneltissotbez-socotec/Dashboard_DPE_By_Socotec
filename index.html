@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADEME DPE Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0f11;
+  --surface: #16181c;
+  --surface2: #1e2026;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --accent: #4ade80;
+  --accent2: #22d3ee;
+  --accent3: #f59e0b;
+  --danger: #ef4444;
+  --font: 'Syne', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --r: 10px;
+  --r2: 6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:14px;line-height:1.6}
+::selection{background:#4ade8033}
+
+/* LAYOUT */
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;width:100%}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;position:fixed;width:220px;height:100vh;overflow-y:auto;z-index:10}
+.main{margin-left:220px;padding:28px 32px;min-width:0;width:calc(100vw - 220px);box-sizing:border-box}
+
+/* SIDEBAR */
+.logo{padding:0 20px 28px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.logo-mark{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-0.5px}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:2px;font-family:var(--mono)}
+.nav-section{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:0 20px;margin:16px 0 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;border-left:2px solid transparent}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(74,222,128,0.06)}
+.nav-item .ico{width:16px;text-align:center;font-size:15px}
+.api-info{margin-top:auto;padding:16px 20px 0;border-top:1px solid var(--border)}
+.api-pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* PANELS */
+.panel{display:none}.panel.active{display:block}
+h1{font-size:24px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px}
+.subtitle{color:var(--muted);font-size:13px;margin-bottom:28px}
+
+/* FORM ELEMENTS */
+.row{display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
+label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono)}
+input,select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r2);color:var(--text);font-family:var(--mono);font-size:13px;padding:10px 14px;outline:none;transition:border-color .15s;width:100%}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+.btn{font-family:var(--font);font-size:13px;font-weight:600;padding:10px 20px;border-radius:var(--r2);cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:none;transition:all .15s;white-space:nowrap;letter-spacing:.01em}
+.btn-go{background:var(--accent);color:#0e0f11}
+.btn-go:hover{background:#6cf09a}
+.btn-go:disabled{background:var(--surface2);color:var(--muted);cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border2)}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--surface2)}
+
+/* URL BAR */
+.url-bar{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;color:var(--muted);word-break:break-all;margin-bottom:16px;overflow:hidden;max-height:60px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.url-bar span{color:var(--accent2)}
+
+/* STATUS */
+.status{padding:12px 16px;border-radius:var(--r2);font-size:13px;display:none;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--mono)}
+.status.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;display:flex}
+.status.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:var(--accent);display:flex}
+.status.info{background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:var(--accent2);display:flex}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-bottom:16px}
+.card-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+/* METRICS GRID */
+.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+.metric{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.metric .v{font-size:26px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px;font-family:var(--mono)}
+.metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.metric.accent .v{color:var(--accent)}
+.metric.cyan .v{color:var(--accent2)}
+.metric.amber .v{color:var(--accent3)}
+
+/* ETIQUETTES */
+.etiq{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:5px;font-size:15px;font-weight:700;font-family:var(--mono)}
+.A{background:#1a5c3a;color:#4ade80}.B{background:#2d5e16;color:#86efac}
+.C{background:#4d6b0f;color:#bef264}.D{background:#7c5a08;color:#fde68a}
+.E{background:#7c3a08;color:#fdba74}.F{background:#7c1212;color:#fca5a5}
+.G{background:#500d0d;color:#ef4444}
+.etiq-lg{width:44px;height:44px;font-size:22px;border-radius:8px}
+
+/* KV TABLE */
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 20px;font-size:13px}
+.kv .k{color:var(--muted);white-space:nowrap;font-family:var(--mono);font-size:12px}
+.kv .val{color:var(--text);font-weight:500}
+
+/* BAR CHART */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bar-label{width:32px;text-align:center}
+.bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.bar-count{font-family:var(--mono);font-size:12px;color:var(--muted);width:80px;text-align:right}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;background:var(--surface2);border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--mono);white-space:nowrap;overflow:hidden;max-width:180px;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+
+/* RAW JSON */
+.raw{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;overflow:auto;max-height:320px;line-height:1.7;white-space:pre}
+.json-key{color:var(--accent2)}.json-str{color:#a3e635}.json-num{color:var(--accent3)}.json-null{color:var(--muted)}
+
+/* CHIPS */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);cursor:pointer;color:var(--muted);background:none;font-family:var(--mono);transition:all .12s}
+.chip:hover{border-color:var(--accent2);color:var(--accent2)}
+
+/* DIVIDER */
+.sep{height:1px;background:var(--border);margin:16px 0}
+
+
+.addr-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s}
+.addr-result-card:hover{border-color:rgba(74,222,128,.4)}
+.action-link{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid var(--border2);color:var(--muted);text-decoration:none;white-space:nowrap;transition:all .15s;display:inline-flex;align-items:center;gap:3px}
+.action-link:hover{border-color:var(--accent);color:var(--accent)}
+.action-btn{cursor:pointer;font-size:10px}
+/* FILTRES */
+.f-btn{font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;border:2px solid transparent;opacity:.55;transition:opacity .15s,border-color .15s}
+.f-btn:hover{opacity:.8}
+.f-btn.active{opacity:1;border-color:white}
+.f-btn-sm{font-size:11px;font-weight:500;padding:4px 10px;border-radius:5px;cursor:pointer;border:1px solid var(--border2);color:var(--muted);background:none;font-family:var(--mono);text-align:left;transition:all .15s}
+.f-btn-sm:hover{border-color:var(--accent2);color:var(--accent2)}
+.f-btn-sm.active{border-color:var(--accent);color:var(--accent);background:rgba(74,222,128,.08)}
+
+/* PLAN RÉNO */
+.reno-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.reno-card-head{padding:12px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.reno-card-body{padding:16px 18px}
+.etiq-pill{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;font-size:16px;font-weight:700;font-family:var(--mono)}
+.etiq-arrow{color:var(--muted);font-size:14px;margin:0 4px}
+.lot-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.lot-row:last-child{border-bottom:none}
+.lot-icon{font-size:18px;width:28px;text-align:center;flex-shrink:0;margin-top:2px}
+.lot-body{flex:1;min-width:0}
+.lot-label{font-size:12px;font-weight:600;color:var(--accent2);font-family:var(--mono);margin-bottom:3px}
+.lot-desc{font-size:12px;color:var(--muted);line-height:1.5}
+.lot-perf{font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:4px;padding:2px 8px;background:rgba(74,222,128,.08);border-radius:4px;display:inline-block}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.kpi-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.kpi-box .v{font-size:18px;font-weight:700;font-family:var(--mono);color:var(--text)}
+.kpi-box .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.dep-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.dep-label{font-size:11px;color:var(--muted);font-family:var(--mono);width:140px;flex-shrink:0}
+.dep-track{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.dep-fill{height:100%;border-radius:4px}
+.dep-val{font-size:11px;font-family:var(--mono);color:var(--text);width:60px;text-align:right}
+.scenario-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+
+.btn3d{font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);color:var(--muted);background:none;cursor:pointer;transition:all .12s}
+.btn3d:hover,.btn3d.active{background:var(--accent);color:#0e0f11;border-color:var(--accent)}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* GRILLES PC */
+.grid-blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+.grid-costs{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
+.block-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.block-grid .k{color:var(--muted);font-size:11px;font-family:var(--mono);padding:6px 0;border-bottom:1px solid var(--border)}
+.block-grid .val{font-size:12px;font-weight:500;color:var(--text);padding:6px 4px;border-bottom:1px solid var(--border);word-break:break-word}
+@media(max-width:900px){
+  .grid-blocks{grid-template-columns:1fr 1fr}
+  .grid-kpis{grid-template-columns:repeat(3,1fr)}
+  .grid-costs{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:600px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:relative;width:100%;height:auto}
+  .main{margin-left:0;width:100%}
+  .grid-blocks{grid-template-columns:1fr}
+  .grid-kpis{grid-template-columns:repeat(2,1fr)}
+  .grid-costs{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+<!-- Bibliothèques JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">DPE Explorer</div>
+      <div class="logo-sub">API ADEME · Open Data</div>
+    </div>
+    <div class="nav-section">Recherche</div>
+    <div class="nav-item active" onclick="show('search')">
+      <span class="ico">🔍</span> Recherche par N° DPE
+    </div>
+    <div class="nav-item" onclick="show('addr')">
+      <span class="ico">📍</span> Recherche par adresse
+    </div>
+    <div class="nav-section">Outils</div>
+    <div class="nav-item" onclick="show('reno')">
+      <span class="ico">🔧</span> Plan de rénovation
+    </div>
+    <div class="nav-item" onclick="show('view3d')">
+      <span class="ico">🏠</span> Vue 3D thermique
+    </div>
+    <div class="nav-section">Analyse</div>
+    <div class="nav-item" onclick="show('stats')">
+      <span class="ico">📊</span> Stats par ville
+    </div>
+    <div class="nav-item" onclick="show('raw')">
+      <span class="ico">⌨️</span> Requête libre
+    </div>
+    <div class="api-info">
+      <div class="api-pill">
+        <div class="pulse"></div>
+        API ADEME live
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)">data.ademe.fr · 15M DPE</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- PANEL : RECHERCHE DPE -->
+    <div class="panel active" id="panel-search">
+      <h1>Recherche DPE</h1>
+      <p class="subtitle">Retrouve un diagnostic à partir de son numéro ADEME officiel</p>
+      <div class="row">
+        <div class="field">
+          <label>Numéro DPE (N°ADEME)</label>
+          <input type="text" id="inp-dpe" value="2559E3512532V" placeholder="ex : 2559E3512532V"
+                 onkeydown="if(event.key==='Enter')searchDpe()">
+        </div>
+        <button class="btn btn-go" id="btn-search" onclick="searchDpe()">→ Rechercher</button>
+      </div>
+      <div class="url-bar" id="url-search">—</div>
+      <div class="status" id="st-search"></div>
+      <div id="result-search"></div>
+    </div>
+
+    <!-- PANEL : RECHERCHE ADRESSE -->
+    <div class="panel" id="panel-addr">
+      <h1>Recherche par adresse</h1>
+      <p class="subtitle">Retrouve et filtre les DPE par adresse, classement, période, énergie...</p>
+
+      <!-- Ligne adresse -->
+      <div class="row" style="margin-bottom:10px">
+        <div class="field" style="max-width:120px">
+          <label>Numéro</label>
+          <input type="text" id="inp-num" placeholder="ex : 30" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field">
+          <label>Rue</label>
+          <input type="text" id="inp-rue" placeholder="ex : Rue Jean Becaert" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:220px">
+          <label>Ville ou code postal</label>
+          <input type="text" id="inp-ville" placeholder="ex : Dunkerque ou 59140" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:100px">
+          <label>Résultats</label>
+          <select id="inp-addr-size">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
+      </div>
+
+      <!-- Accordéon filtres -->
+      <details id="filter-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+        <summary style="padding:12px 18px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);display:flex;align-items:center;gap:8px;list-style:none">
+          <span>⚙</span> Filtres avancés
+          <span id="filter-badge" style="display:none;background:var(--accent);color:#0e0f11;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700">0</span>
+          <span style="margin-left:auto;color:var(--muted)">▼</span>
+        </summary>
+        <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;border-top:1px solid var(--border)">
+
+          <!-- Étiquette DPE -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette DPE</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-dpe">
+              <button class="f-btn" data-group="etiq_dpe" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Étiquette GES -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette GES</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-ges">
+              <button class="f-btn" data-group="etiq_ges" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Période construction -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Période construction</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-periode">
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Avant 1948" onclick="toggleFilter(this)">Avant 1948</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1948-1974" onclick="toggleFilter(this)">1948-1974</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1975-1981" onclick="toggleFilter(this)">1975-1981</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1982-1989" onclick="toggleFilter(this)">1982-1989</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1990-2000" onclick="toggleFilter(this)">1990-2000</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="2001-2012" onclick="toggleFilter(this)">2001-2012</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Après 2012" onclick="toggleFilter(this)">Après 2012</button>
+            </div>
+          </div>
+
+          <!-- Type habitation -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Type habitation</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-type-hab">
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="appartement" onclick="toggleFilter(this)">🏢 Appartement</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="maison" onclick="toggleFilter(this)">🏠 Maison</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="immeuble" onclick="toggleFilter(this)">🏬 Immeuble</button>
+            </div>
+          </div>
+
+          <!-- Colonne droite : énergie + dates + surface -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Énergie chauffage -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Énergie chauffage</div>
+              <div style="display:flex;flex-direction:column;gap:4px" id="f-energie">
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Gaz naturel" onclick="toggleFilter(this)">🔵 Gaz naturel</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Électricité" onclick="toggleFilter(this)">⚡ Électricité</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Fioul domestique" onclick="toggleFilter(this)">🟤 Fioul</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Bois" onclick="toggleFilter(this)">🪵 Bois</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Réseau de chaleur" onclick="toggleFilter(this)">🌡 Réseau chaleur</button>
+              </div>
+            </div>
+
+            <!-- Plage de dates du DPE -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Date établissement DPE</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="date" id="f-date-min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="date" id="f-date-max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+            <!-- Surface -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Surface (m²)</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="number" id="f-surf-min" placeholder="Min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="number" id="f-surf-max" placeholder="Max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Pied filtres : tri + reset -->
+        <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)">Trier par</div>
+          <select id="f-sort" style="font-size:12px;padding:5px 10px;flex:none;width:auto" onchange="updateFilterBadge()">
+            <option value="-date_etablissement_dpe">Date DPE (récent)</option>
+            <option value="date_etablissement_dpe">Date DPE (ancien)</option>
+            <option value="etiquette_dpe">Étiquette (A→G)</option>
+            <option value="-etiquette_dpe">Étiquette (G→A)</option>
+            <option value="conso_5_usages_par_m2_ef">Conso EF (croissant)</option>
+            <option value="-conso_5_usages_par_m2_ef">Conso EF (décroissant)</option>
+            <option value="cout_total_5_usages">Coût annuel (croissant)</option>
+            <option value="-cout_total_5_usages">Coût annuel (décroissant)</option>
+            <option value="surface_habitable_logement">Surface (croissante)</option>
+            <option value="-surface_habitable_logement">Surface (décroissante)</option>
+          </select>
+          <button onclick="resetFilters()" style="font-family:var(--mono);font-size:11px;padding:5px 12px;background:none;border:1px solid var(--border2);color:var(--muted);border-radius:var(--r2);cursor:pointer;margin-left:auto">✕ Réinitialiser les filtres</button>
+        </div>
+      </details>
+
+      <div class="url-bar" id="url-addr">—</div>
+      <div class="status" id="st-addr"></div>
+      <div id="result-addr"></div>
+    </div>
+
+    <!-- PANEL : PLAN DE RÉNOVATION -->
+    <div class="panel" id="panel-reno">
+      <h1>Plan de rénovation</h1>
+      <p class="subtitle">Importez un fichier XML ADEME pour afficher les scénarios de travaux complets</p>
+
+      <div id="reno-drop" onclick="document.getElementById('reno-xml-input').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:20px;transition:all .2s">
+        <input type="file" id="reno-xml-input" accept=".xml" style="display:none" onchange="loadRenoXml(this)">
+        <div style="font-size:32px;margin-bottom:12px">📄</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME ici</div>
+        <div style="font-size:12px;color:var(--muted)">Fichier généré par LICIEL, Argos Ithaque, Climawin ou tout logiciel certifié 3CL-DPE 2021</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-reno"></div>
+      <div id="result-reno"></div>
+    </div>
+
+    <!-- PANEL : VUE 3D -->
+    <div class="panel" id="panel-view3d">
+      <h1>Vue 3D thermique</h1>
+      <p class="subtitle">Représentation du logement avec carte thermique des parois — importez un XML ADEME</p>
+
+      <div id="view3d-drop" onclick="document.getElementById('view3d-xml').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:16px;transition:all .2s" id="drop3d">
+        <input type="file" id="view3d-xml" accept=".xml" style="display:none" onchange="load3dXml(this)">
+        <div style="font-size:32px;margin-bottom:10px">📦</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME</div>
+        <div style="font-size:12px;color:var(--muted)">Génère une maquette 3D orientée avec carte thermique des U-values</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-3d"></div>
+
+      <!-- Contrôles -->
+      <div id="controls3d" style="display:none;margin-bottom:12px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Vue :</div>
+          <button onclick="setView3d('perspective')" class="btn3d active" id="btn-persp">Perspective</button>
+          <button onclick="setView3d('north')"       class="btn3d" id="btn-north">Nord</button>
+          <button onclick="setView3d('south')"       class="btn3d" id="btn-south">Sud</button>
+          <button onclick="setView3d('east')"        class="btn3d" id="btn-east">Est</button>
+          <button onclick="setView3d('west')"        class="btn3d" id="btn-west">Ouest</button>
+          <button onclick="setView3d('top')"         class="btn3d" id="btn-top">Dessus</button>
+          <div style="flex:1"></div>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-reno" onchange="toggleRenovation(this.checked)"> Voir après travaux
+          </label>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-xray" onchange="toggleXray(this.checked)"> Mode X-ray
+          </label>
+        </div>
+      </div>
+
+      <!-- Canvas 3D -->
+      <div id="canvas3d-wrap" style="display:none;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;background:#0a0a0f">
+        <canvas id="canvas3d" style="display:block;width:100%;height:500px"></canvas>
+        <!-- Légende U-values -->
+        <div id="legend3d" style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:10px">
+          <div style="color:rgba(255,255,255,.6);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">U-value (W/m²K)</div>
+          <div style="display:flex;flex-direction:column;gap:3px" id="legend-items"></div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:9px">Cliquez sur une paroi pour l'inspecter</div>
+        </div>
+        <!-- Info paroi au survol -->
+        <div id="tooltip3d" style="display:none;position:absolute;background:rgba(0,0,0,.85);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;pointer-events:none;max-width:220px"></div>
+        <!-- Boussole -->
+        <div style="position:absolute;bottom:12px;left:12px;font-size:20px;opacity:.6">🧭</div>
+        <div id="compass-n" style="position:absolute;bottom:42px;left:22px;font-size:10px;color:rgba(255,255,255,.5);font-family:var(--mono)">N</div>
+      </div>
+
+      <!-- Stats parois -->
+      <div id="parois3d-stats" style="display:none;margin-top:16px"></div>
+    </div>
+
+    <!-- PANEL : STATS -->
+    <div class="panel" id="panel-stats">
+      <h1>Stats par ville</h1>
+      <p class="subtitle">Analyse la répartition des étiquettes DPE sur un code postal</p>
+      <div class="row">
+        <div class="field">
+          <label>Code postal</label>
+          <input type="text" id="inp-cp" value="59140" maxlength="5"
+                 onkeydown="if(event.key==='Enter')loadStats()">
+        </div>
+        <div class="field" style="max-width:160px">
+          <label>Échantillon</label>
+          <select id="inp-size">
+            <option value="100">100 DPE</option>
+            <option value="500" selected>500 DPE</option>
+            <option value="1000">1000 DPE</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-stats" onclick="loadStats()">→ Analyser</button>
+      </div>
+      <div class="url-bar" id="url-stats">—</div>
+      <div class="status" id="st-stats"></div>
+      <div id="result-stats"></div>
+    </div>
+
+    <!-- PANEL : REQUÊTE LIBRE -->
+    <div class="panel" id="panel-raw">
+      <h1>Requête libre</h1>
+      <p class="subtitle">Construis ta propre requête API et explore les champs disponibles</p>
+      <div class="chips" id="raw-chips"></div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Paramètres (après /lines?)</label>
+        <input type="text" id="inp-raw"
+          value="q=75001&select=numero_dpe,etiquette_dpe,surface_habitable_logement,nom_commune_ban,type_batiment&size=10"
+          oninput="updateRawUrl()">
+      </div>
+      <div class="url-bar" id="url-raw">—</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-go" id="btn-raw" onclick="runRaw()">→ Exécuter</button>
+        <button class="btn btn-ghost" onclick="copyRawUrl()">⎘ Copier l'URL</button>
+      </div>
+      <div class="status" id="st-raw"></div>
+      <div id="result-raw"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
+
+// ─── CONFIGURATION PROXY ─────────────────────────────────────────────────
+// Remplacer par l'URL de ton Cloudflare Worker après déploiement
+// Ex: https://dpe-proxy.moncompte.workers.dev
+// Le Worker reçoit les mêmes paramètres que l'API ADEME et ajoute les headers CORS
+const PROXY_BASE = 'https://dpe-proxy.lioneltissotbez.workers.dev';
+
+// Détection : si le Worker n'est pas encore configuré, afficher un message clair
+const PROXY_CONFIGURED = PROXY_BASE !== 'REMPLACER_PAR_URL_WORKER';
+
+function ademeQs(params) {
+  // Les noms de champs ADEME contiennent des accents (N°_DPE, Type_bâtiment...)
+  // On les passe BRUTS dans l'URL — c'est le navigateur qui les encode une seule fois
+  // Ne surtout pas appeler encodeURIComponent sur les clés → double-encodage → 400
+  return Object.entries(params)
+    .map(([k, v]) => k + '=' + encodeURIComponent(v))
+    .join('&');
+}
+
+function buildUrl(params) {
+  if (!PROXY_CONFIGURED) return null;
+  return PROXY_BASE + '/?' + ademeQs(params);
+}
+
+function buildUrlRaw(rawParams) {
+  if (!PROXY_CONFIGURED) return null;
+  return PROXY_BASE + '/?' + rawParams;
+}
+
+function displayUrl(params) {
+  return ADEME + '?' + ademeQs(params);
+}
+
+const RAW_EXAMPLES = [
+  { label: 'Paris 1er arrdt',   q: 'q=75001&select=numero_dpe,etiquette_dpe,surface_habitable_logement,nom_commune_ban,type_batiment&size=10' },
+  { label: 'Passoires G récentes', q: 'qs=etiquette_dpe:G&select=numero_dpe,nom_commune_ban,code_postal_ban,surface_habitable_logement,date_etablissement_dpe&size=10&sort=-date_etablissement_dpe' },
+  { label: 'Dunkerque 59140',   q: 'qs=code_postal_ban:59140&select=numero_dpe,etiquette_dpe,etiquette_ges,conso_5_usages_ef,surface_habitable_logement,type_energie_principale_chauffage&size=10' },
+  { label: '5 derniers DPE',    q: 'select=numero_dpe,date_etablissement_dpe,etiquette_dpe,nom_commune_ban&sort=-date_etablissement_dpe&size=5' },
+  { label: 'Gros logements >150m²', q: 'qs=surface_habitable_logement:[150 TO *]&select=numero_dpe,surface_habitable_logement,etiquette_dpe,nom_commune_ban,code_postal_ban&size=10&sort=-surface_habitable_logement' },
+];
+
+/* ── NAV ── */
+function show(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (id === 'raw') { buildChips(); updateRawUrl(); }
+}
+
+/* ── UTILS ── */
+function fmt(v) { return (v !== null && v !== undefined && v !== '') ? v : '—'; }
+function fmtN(v, dec=0) {
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  return dec ? n.toFixed(dec) : Math.round(n).toLocaleString('fr-FR');
+}
+function etiq(v, lg) {
+  if (!v) return '—';
+  return `<span class="etiq${lg?' etiq-lg':''} ${v}">${v}</span>`;
+}
+
+function setStatus(id, type, msg) {
+  const el = document.getElementById('st-' + id);
+  el.className = 'status ' + type;
+  el.innerHTML = msg;
+}
+function clearStatus(id) {
+  const el = document.getElementById('st-' + id);
+  el.className = 'status';
+  el.style.display = '';
+}
+
+async function apiFetch(url, btnId, statusId) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = true;
+  btn.textContent = '⏳ Chargement…';
+
+  if (!PROXY_CONFIGURED || !url) {
+    setStatus(statusId, 'err',
+      '⚙ Worker non configuré — Lis le fichier <strong>worker.js</strong> ' +
+      'pour déployer ton proxy Cloudflare, puis remplace PROXY_BASE dans ce fichier.');
+    btn.disabled = false;
+    btn.textContent = btnId === 'btn-search' ? '→ Rechercher'
+                    : btnId === 'btn-stats'  ? '→ Analyser' : '→ Exécuter';
+    return null;
+  }
+
+  setStatus(statusId, 'info', '<span class="spin">↻</span> &nbsp;Requête en cours…');
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + r.statusText);
+    const d = await r.json();
+    clearStatus(statusId);
+    return d;
+  } catch(e) {
+    setStatus(statusId, 'err', '✖ ' + e.message);
+    return null;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btnId === 'btn-search' ? '→ Rechercher'
+                    : btnId === 'btn-stats'  ? '→ Analyser' : '→ Exécuter';
+  }
+}
+
+/* ─────────────────────────────────────────
+   ONGLET 1 — RECHERCHE PAR N° DPE
+───────────────────────────────────────── */
+async function searchDpe() {
+  const num = document.getElementById('inp-dpe').value.trim();
+  if (!num) return;
+  // Recherche fulltext sur le numéro DPE — pas de q_fields pour éviter les pb d'encodage
+  const params = { q: num, size: '1' };
+  const url = buildUrl(params);
+  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+  const data = await apiFetch(url, 'btn-search', 'search');
+  if (!data) return;
+  const el = document.getElementById('result-search');
+  if (!data.results?.length) {
+    el.innerHTML = `<div class="card" style="color:var(--muted)">Aucun DPE trouvé pour ce numéro.<br>
+      Le DPE est peut-être trop récent (synchro hebdomadaire) ou le numéro est incorrect.</div>`;
+    return;
+  }
+  const d = data.results[0];
+  el.innerHTML = renderDpeCard(d, data.total);
+}
+
+function renderDpeCard(d, total) {
+  const eDpe = d['etiquette_dpe'] || '';
+  const eGes = d['etiquette_ges'] || '';
+
+  const etiqColors = {
+    A:{bg:'#1a5c3a',tx:'#4ade80'}, B:{bg:'#2d5e16',tx:'#86efac'},
+    C:{bg:'#4d6b0f',tx:'#bef264'}, D:{bg:'#7c5a08',tx:'#fde68a'},
+    E:{bg:'#7c3a08',tx:'#fdba74'}, F:{bg:'#7c1212',tx:'#fca5a5'},
+    G:{bg:'#500d0d',tx:'#ef4444'}
+  };
+
+  function badge(v, size) {
+    if (!v) return '<span style="color:var(--muted)">—</span>';
+    const c = etiqColors[v] || {bg:'#333',tx:'#fff'};
+    const sz = size === 'lg' ? '52px;font-size:28px' : '28px;font-size:14px';
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + sz + ';height:' + (size==='lg'?'52':'28') + 'px;border-radius:8px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+  }
+
+  function row(label, value) {
+    const v = (value !== null && value !== undefined && value !== '') ? value : '—';
+    return '<div style="display:contents"><span style="color:var(--muted);font-size:11px;font-family:var(--mono);padding:6px 0;border-bottom:1px solid var(--border)">' + label + '</span><span style="font-size:12px;font-weight:500;color:var(--text);padding:6px 0;border-bottom:1px solid var(--border);word-break:break-word">' + v + '</span></div>';
+  }
+
+  function block(title, color, rows) {
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      + '<div style="background:' + color + ';padding:8px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)">' + title + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;padding:4px 14px">'
+      + rows
+      + '</div></div>';
+  }
+
+  function metricBox(value, label, color) {
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">'
+      + '<div style="font-size:24px;font-weight:700;color:' + (color||'var(--text)') + ';font-family:var(--mono);line-height:1">' + (value||'—') + '</div>'
+      + '<div style="font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.08em">' + label + '</div>'
+      + '</div>';
+  }
+
+  return '<div style="display:flex;flex-direction:column;gap:16px">'
+
+    // ── ENTÊTE ──
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px">'
+    + '<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">'
+    + '<div style="display:flex;gap:12px;align-items:center">'
+    + badge(eDpe, 'lg')
+    + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Énergie</div>'
+    + badge(eGes, 'lg')
+    + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">GES</div></div>'
+    + '</div>'
+    + '<div style="flex:1;min-width:180px">'
+    + '<div style="font-size:15px;font-weight:700;margin-bottom:4px;line-height:1.3">' + fmt(d['adresse_brut']) + '</div>'
+    + '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:2px">' + fmt(d['code_postal_ban']) + ' ' + fmt(d['nom_commune_ban']) + '</div>'
+    + '<div style="font-family:var(--mono);font-size:11px;color:var(--muted)">' + fmt(d['methode_application_dpe']) + '</div>'
+    + '</div>'
+    + '<div style="text-align:right;min-width:100px">'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">N° DPE</div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--accent);font-family:var(--mono)">' + fmt(d['numero_dpe']) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:8px">Visité le</div>'
+    + '<div style="font-size:12px;font-weight:500;font-family:var(--mono)">' + fmt(d['date_visite_diagnostiqueur']) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:4px">Valide jusqu&#39;au</div>'
+    + '<div style="font-size:12px;font-weight:500;font-family:var(--mono);color:#4ade80">' + fmt(d['date_fin_validite_dpe']) + '</div>'
+    + '</div>'
+    // Liens externes dans l'entête fiche
+    + (function() {
+        const _gp = d['_geopoint'] || '';
+        let _lat = null, _lon = null;
+        if (_gp) { const _p = _gp.split(','); _lat = parseFloat(_p[0]); _lon = parseFloat(_p[1]); }
+        const _rnb  = d['id_rnb'] ? 'https://rnb.beta.gouv.fr/batiment/' + d['id_rnb'] : '';
+        const _cad  = _lat && _lon ? 'https://www.cadastre.gouv.fr/scpc/rechercherPlan.do?lng=' + _lon + '&lat=' + _lat : '';
+        const _ign  = _lat && _lon ? 'https://www.geoportail.gouv.fr/carte?c=' + _lon + ',' + _lat + '&z=20&l0=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(1)&l1=CADASTRALPARCELS.PARCELLAIRE_EXPRESS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes' : '';
+        const _maps = _lat && _lon ? 'https://www.google.com/maps/search/?api=1&query=' + _lat + ',' + _lon : '';
+        const _sv   = _lat && _lon ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + _lat + ',' + _lon : '';
+        const _ademe = d['numero_dpe'] ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + d['numero_dpe'] : '';
+        let links = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">';
+        if (_maps)  links += '<a href="' + _maps  + '" target="_blank" rel="noopener" class="action-link">🗺 Maps</a>';
+        if (_sv)    links += '<a href="' + _sv    + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>';
+        if (_ademe) links += '<a href="' + _ademe + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 ADEME</a>';
+        if (_cad)   links += '<a href="' + _cad   + '" target="_blank" rel="noopener" class="action-link" style="color:#f59e0b">📐 Cadastre</a>';
+        if (_ign)   links += '<a href="' + _ign   + '" target="_blank" rel="noopener" class="action-link" style="color:#a78bfa">🗾 IGN Parcelle</a>';
+        if (_rnb)   links += '<a href="' + _rnb   + '" target="_blank" rel="noopener" class="action-link" style="color:#22d3ee">🏗 RNB ' + (d['id_rnb'] || '') + '</a>';
+        links += '</div>';
+        return links;
+      })()
+    + '</div></div>'
+
+    // ── KPIs principaux ──
+    + '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">'
+    + metricBox(fmtN(d['conso_5_usages_par_m2_ef']) + ' kWh', 'Conso EF / m²/an', '#22d3ee')
+    + metricBox(fmtN(d['conso_5_usages_par_m2_ep']) + ' kWh', 'Conso EP / m²/an', '#a78bfa')
+    + metricBox(fmtN(d['emission_ges_5_usages_par_m2']) + ' kg', 'CO₂ / m²/an', '#f87171')
+    + metricBox(fmtN(d['surface_habitable_logement']) + ' m²', 'Surface habitable', 'var(--text)')
+    + metricBox(fmtN(d['cout_total_5_usages']) + ' €', 'Coût total/an', '#f59e0b')
+    + metricBox(fmtN(d['ubat_w_par_m2_k']) + ' W/m²K', 'Ubat', 'var(--muted)')
+    + '</div>'
+
+    // ── GRILLE 3 colonnes ──
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
+
+    // Bloc logement
+    + block('🏠 Logement', '#1e3a5f', 
+        row('Type', d['type_batiment'])
+      + row('Période construction', d['periode_construction'])
+      + row('Nb niveaux', d['nombre_niveau_logement'])
+      + row('Hauteur plafond', d['hauteur_sous_plafond'] ? d['hauteur_sous_plafond'] + ' m' : '')
+      + row('Classe inertie', d['classe_inertie_batiment'])
+      + row('Zone climatique', d['zone_climatique'])
+      + row('Classe altitude', d['classe_altitude'])
+      + row('Traversant', d['logement_traversant'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc chauffage
+    + block('🔥 Chauffage', '#3b1c1c',
+        row('Énergie principale', d['type_energie_principale_chauffage'])
+      + row('Générateur', d['type_generateur_n1_installation_n1'])
+      + row('Configuration', d['configuration_installation_chauffage_n1'])
+      + row('Émetteur', d['type_emetteur_installation_chauffage_n1'] ? d['type_emetteur_installation_chauffage_n1'].split(' sur')[0] : '')
+      + row('Surface chauffée', d['surface_chauffee_installation_chauffage_n1'] ? d['surface_chauffee_installation_chauffage_n1'] + ' m²' : '')
+      + row('Conso EF ch.', d['conso_chauffage_ef'] ? fmtN(d['conso_chauffage_ef']) + ' kWh' : '')
+      + row('Coût chauffage', d['cout_chauffage'] ? fmtN(d['cout_chauffage']) + ' €/an' : '')
+      + row('Émissions GES ch.', d['emission_ges_chauffage'] ? fmtN(d['emission_ges_chauffage']) + ' kg CO₂' : '')
+    )
+
+    // Bloc ECS
+    + block('🚿 Eau Chaude Sanitaire', '#1c2e3b',
+        row('Énergie ECS', d['type_energie_principale_ecs'])
+      + row('Générateur ECS', d['type_generateur_n1_ecs_n1'])
+      + row('Configuration', d['configuration_installation_ecs_n1'])
+      + row('Type production', d['type_installation_ecs_n1'])
+      + row('Conso EF ECS', d['conso_ecs_ef'] ? fmtN(d['conso_ecs_ef']) + ' kWh' : '')
+      + row('Coût ECS', d['cout_ecs'] ? fmtN(d['cout_ecs']) + ' €/an' : '')
+      + row('Émissions GES ECS', d['emission_ges_ecs'] ? fmtN(d['emission_ges_ecs']) + ' kg CO₂' : '')
+      + row('Volume stockage', d['volume_stockage_generateur_n1_ecs_n1'] ? d['volume_stockage_generateur_n1_ecs_n1'] + ' L' : 'N/A')
+    )
+
+    // Bloc ventilation & éclairage
+    + block('💨 Ventilation & Auxiliaires', '#1c2b1c',
+        row('Type ventilation', d['type_ventilation'])
+      + row('Post 2012', d['ventilation_posterieure_2012'] ? 'Oui' : 'Non')
+      + row('Surface ventilée', d['surface_ventilee'] ? d['surface_ventilee'] + ' m²' : '')
+      + row('Conso éclairage EF', d['conso_eclairage_ef'] ? fmtN(d['conso_eclairage_ef']) + ' kWh' : '')
+      + row('Conso auxiliaires EF', d['conso_auxiliaires_ef'] ? fmtN(d['conso_auxiliaires_ef']) + ' kWh' : '')
+      + row('Coût éclairage', d['cout_eclairage'] ? fmtN(d['cout_eclairage']) + ' €/an' : '')
+      + row('Coût auxiliaires', d['cout_auxiliaires'] ? fmtN(d['cout_auxiliaires']) + ' €/an' : '')
+      + row('Émissions éclairage', d['emission_ges_eclairage'] ? fmtN(d['emission_ges_eclairage']) + ' kg CO₂' : '')
+    )
+
+    // Bloc isolation
+    + block('🧱 Isolation & Enveloppe', '#2a1f0a',
+        row('Murs', d['qualite_isolation_murs'])
+      + row('Menuiseries', d['qualite_isolation_menuiseries'])
+      + row('Plancher bas', d['qualite_isolation_plancher_bas'])
+      + row('Plancher haut', d['qualite_isolation_plancher_haut_comble_perdu'])
+      + row('Enveloppe globale', d['qualite_isolation_enveloppe'])
+      + row('Isolation toiture', d['isolation_toiture'] ? 'Oui' : 'Non')
+      + row('Brasseur air', d['presence_brasseur_air'] ? 'Oui' : 'Non')
+      + row('Protection solaire ext.', d['protection_solaire_exterieure'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc déperditions
+    + block('📉 Déperditions (%)', '#1f1f2e',
+        row('Murs', d['deperditions_murs'] ? d['deperditions_murs'] + ' %' : '')
+      + row('Baies vitrées', d['deperditions_baies_vitrees'] ? d['deperditions_baies_vitrees'] + ' %' : '')
+      + row('Planchers bas', d['deperditions_planchers_bas'] ? d['deperditions_planchers_bas'] + ' %' : '')
+      + row('Planchers hauts', d['deperditions_planchers_hauts'] ? d['deperditions_planchers_hauts'] + ' %' : '')
+      + row('Ponts thermiques', d['deperditions_ponts_thermiques'] ? d['deperditions_ponts_thermiques'] + ' %' : '')
+      + row('Portes', d['deperditions_portes'] ? d['deperditions_portes'] + ' %' : '')
+      + row('Renouvellement air', d['deperditions_renouvellement_air'] ? d['deperditions_renouvellement_air'] + ' %' : '')
+      + row('Enveloppe totale', d['deperditions_enveloppe'] ? d['deperditions_enveloppe'] + ' %' : '')
+    )
+
+    // Bloc apports & besoins
+    + block('☀️ Apports & Besoins', '#1a2a1a',
+        row('Besoin chauffage', d['besoin_chauffage'] ? fmtN(d['besoin_chauffage']) + ' kWh' : '')
+      + row('Besoin ECS', d['besoin_ecs'] ? fmtN(d['besoin_ecs']) + ' kWh' : '')
+      + row('Besoin refroid.', d['besoin_refroidissement'] ? fmtN(d['besoin_refroidissement']) + ' kWh' : '0')
+      + row('Apports solaires (chauffe)', d['apport_solaire_saison_chauffe'] ? fmtN(d['apport_solaire_saison_chauffe']) + ' kWh' : '')
+      + row('Apports internes (chauffe)', d['apport_interne_saison_chauffe'] ? fmtN(d['apport_interne_saison_chauffe']) + ' kWh' : '')
+      + row('Confort été', d['indicateur_confort_ete'])
+      + row('Prod. PV (kWhep/an)', d['production_electricite_pv_kwhep_par_an'] ? fmtN(d['production_electricite_pv_kwhep_par_an']) : '0')
+      + row('Logement traversant', d['logement_traversant'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc émissions totales
+    + block('💨 Émissions GES totales', '#1f1515',
+        row('Total 5 usages', d['emission_ges_5_usages'] ? fmtN(d['emission_ges_5_usages']) + ' kg CO₂/an' : '')
+      + row('Par m²', d['emission_ges_5_usages_par_m2'] ? fmtN(d['emission_ges_5_usages_par_m2']) + ' kg/m²/an' : '')
+      + row('Chauffage', d['emission_ges_chauffage'] ? fmtN(d['emission_ges_chauffage']) + ' kg' : '')
+      + row('ECS', d['emission_ges_ecs'] ? fmtN(d['emission_ges_ecs']) + ' kg' : '')
+      + row('Éclairage', d['emission_ges_eclairage'] ? fmtN(d['emission_ges_eclairage']) + ' kg' : '')
+      + row('Auxiliaires', d['emission_ges_auxiliaires'] ? fmtN(d['emission_ges_auxiliaires']) + ' kg' : '')
+      + row('Refroid.', d['emission_ges_refroidissement'] ? fmtN(d['emission_ges_refroidissement']) + ' kg' : '0')
+      + row('Énergie n1', d['type_energie_n1'] || '')
+    )
+
+    + '</div>'  // fin grille 3 col
+
+    // ── Coûts détaillés ──
+    + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+    + '<div style="background:#3b2a0a;padding:8px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)">💰 Détail des coûts annuels</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)">'
+    + ['chauffage|Chauffage|#f59e0b','ecs|Eau chaude|#22d3ee','eclairage|Éclairage|#a78bfa','auxiliaires|Auxiliaires|#6b7280','total_5_usages|Total|#4ade80'].map(s => {
+        const [k, label, col] = s.split('|');
+        const v = d['cout_' + k];
+        return '<div style="background:var(--surface2);padding:16px 14px;text-align:center">'
+          + '<div style="font-size:20px;font-weight:700;color:' + col + ';font-family:var(--mono)">' + (v ? fmtN(v) + ' €' : '—') + '</div>'
+          + '<div style="font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.08em">' + label + '</div>'
+          + '</div>';
+      }).join('')
+    + '</div></div>'
+
+    // ── JSON brut ──
+    + '<details style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+    + '<summary style="padding:10px 16px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;cursor:pointer;font-family:var(--mono)">JSON brut · ' + Object.keys(d).length + ' champs</summary>'
+    + '<div class="raw" style="margin:0;border-radius:0;border:none;border-top:1px solid var(--border)">' + colorizeJson(JSON.stringify(d, null, 2)) + '</div>'
+    + '</details>'
+
+    + '</div>';
+}
+
+
+
+/* ─────────────────────────────────────────
+   ONGLET 2 — STATS PAR VILLE
+───────────────────────────────────────── */
+async function loadStats() {
+  const cp = document.getElementById('inp-cp').value.trim();
+  const size = document.getElementById('inp-size').value;
+  if (!cp) return;
+  // Champs sans accents dans les noms pour éviter l'erreur 400
+  // Vrais noms de champs confirmés par l'API
+  const fields = 'etiquette_dpe,etiquette_ges,surface_habitable_logement,type_batiment,conso_5_usages_ef,emission_ges_5_usages_par_m2,type_energie_principale_chauffage,periode_construction,nom_commune_ban,cout_total_5_usages';
+  const params = { q: cp, select: fields, size: size };
+  const url = buildUrl(params);
+  document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+  const data = await apiFetch(url, 'btn-stats', 'stats');
+  if (!data?.results) return;
+  renderStats(data, cp);
+}
+
+function renderStats(data, cp) {
+  const res = data.results;
+  const n = res.length;
+  if (!n) { document.getElementById('result-stats').innerHTML = '<div class="card" style="color:var(--muted)">Aucun résultat pour ce code postal.</div>'; return; }
+
+  const ville = res[0]['nom_commune_ban'] || cp;
+  const EC = {};
+  ['A','B','C','D','E','F','G'].forEach(e => EC[e] = 0);
+  let totConso=0, nConso=0, totSurf=0, nSurf=0, totGes=0, nGes=0;
+  const enrg = {}, types = {};
+
+  res.forEach(r => {
+    const e = r['etiquette_dpe'];
+    if (e && EC[e] !== undefined) EC[e]++;
+    const c = parseFloat(r['conso_5_usages_ef']);
+    if (!isNaN(c)) { totConso += c; nConso++; }
+    const s = parseFloat(r['surface_habitable_logement']);
+    if (!isNaN(s)) { totSurf += s; nSurf++; }
+    const g = parseFloat(r['emission_ges_5_usages_par_m2']);
+    if (!isNaN(g)) { totGes += g; nGes++; }
+    const en = r['type_energie_principale_chauffage'] || 'Non renseigné';
+    enrg[en] = (enrg[en] || 0) + 1;
+    const ty = r['type_batiment'] || 'Non renseigné';
+    types[ty] = (types[ty] || 0) + 1;
+  });
+
+  const maxBar = Math.max(...Object.values(EC), 1);
+  const passoires = EC['F'] + EC['G'];
+  const passPct = Math.round((passoires / n) * 100);
+  const bCols = { A:'#1a5c3a', B:'#2d5e16', C:'#4d6b0f', D:'#7c5a08', E:'#7c3a08', F:'#7c1212', G:'#500d0d' };
+  const bText = { A:'#4ade80', B:'#86efac', C:'#bef264', D:'#fde68a', E:'#fdba74', F:'#fca5a5', G:'#ef4444' };
+  const modeE = ['A','B','C','D','E','F','G'].reduce((a,b) => EC[a] >= EC[b] ? a : b);
+  const enrgTop = Object.entries(enrg).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const enrgMax = enrgTop[0]?.[1] || 1;
+  const typesHtml = Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,c]) => '<span style="font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);color:#6b7280;margin:2px;display:inline-block">' + t + ' <strong style="color:#e8eaf0">' + c + '</strong></span>').join('');
+
+  document.getElementById('result-stats').innerHTML = `
+  <div class="card">
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">${ville} · ${cp}</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:20px">
+      ${n.toLocaleString('fr-FR')} DPE analysés sur ${data.total?.toLocaleString('fr-FR') || '?'} au total
+    </div>
+
+    <div class="metrics">
+      <div class="metric cyan"><div class="v">${Math.round(totConso/Math.max(nConso,1)).toLocaleString('fr-FR')}</div><div class="l">kWh EF/an moyen</div></div>
+      <div class="metric"><div class="v">${Math.round(totSurf/Math.max(nSurf,1))} m²</div><div class="l">Surface moy.</div></div>
+      <div class="metric amber"><div class="v">${Math.round(totGes/Math.max(nGes,1))}</div><div class="l">kg CO₂/m²/an moy.</div></div>
+      <div class="metric" style="border:1px solid rgba(239,68,68,.3)"><div class="v" style="color:#fca5a5">${passPct}%</div><div class="l">Passoires F+G</div></div>
+      <div class="metric accent"><div class="v">${etiq(modeE)}</div><div class="l">Étiquette dominante</div></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="card-title">Répartition des étiquettes DPE</div>
+    ${['A','B','C','D','E','F','G'].map(e => `
+    <div class="bar-row">
+      <div class="bar-label">${etiq(e)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((EC[e]/maxBar)*100)}%;background:${bCols[e]}"></div></div>
+      <div class="bar-count"><span style="color:${bText[e]}">${EC[e]}</span> <span style="opacity:.5">(${Math.round((EC[e]/n)*100)}%)</span></div>
+    </div>`).join('')}
+
+    <div class="sep"></div>
+    <div class="card-title">Énergies de chauffage</div>
+    ${enrgTop.map(([en,cnt]) => `
+    <div class="bar-row">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${en}">${en}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((cnt/enrgMax)*100)}%;background:var(--accent2);opacity:.5"></div></div>
+      <div class="bar-count">${cnt}</div>
+    </div>`).join('')}
+
+    <div class="sep"></div>
+    <div class="card-title">Types de logements</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${typesHtml}</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────
+   ONGLET 3 — REQUÊTE LIBRE
+───────────────────────────────────────── */
+function buildChips() {
+  const wrap = document.getElementById('raw-chips');
+  if (wrap.children.length) return;
+  RAW_EXAMPLES.forEach(ex => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = ex.label;
+    b.onclick = () => { document.getElementById('inp-raw').value = ex.q; updateRawUrl(); };
+    wrap.appendChild(b);
+  });
+}
+
+function updateRawUrl() {
+  const p = document.getElementById('inp-raw').value;
+  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + ADEME + '?' + p + '</span>';
+}
+
+function copyRawUrl() {
+  const url = ADEME + '?' + document.getElementById('inp-raw').value;
+  navigator.clipboard.writeText(url).then(() => {
+    setStatus('raw', 'ok', '✔ URL copiée dans le presse-papier');
+    setTimeout(() => clearStatus('raw'), 2000);
+  });
+}
+
+async function runRaw() {
+  const p = document.getElementById('inp-raw').value.trim();
+  const displayRawUrl = ADEME + '?' + p;
+  const url = buildUrlRaw(p);
+  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + displayRawUrl + '</span>';
+  const data = await apiFetch(url, 'btn-raw', 'raw');
+  if (!data) return;
+  const el = document.getElementById('result-raw');
+  const cols = data.results?.[0] ? Object.keys(data.results[0]) : [];
+  el.innerHTML = `
+  <div class="card">
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px">
+      <span style="color:var(--accent)">${(data.total||0).toLocaleString('fr-FR')}</span> résultats au total &nbsp;·&nbsp;
+      <span style="color:var(--accent2)">${data.results?.length||0}</span> retournés &nbsp;·&nbsp;
+      ${cols.length} colonnes
+    </div>
+    ${data.results?.length ? `
+    <div class="tbl-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr>${cols.map(c=>`<th title="${c}">${c}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${data.results.map((r,i) => `<tr>
+            ${cols.map(c => {
+              const v = r[c];
+              const disp = (v!==null&&v!==undefined&&v!=='') ? v : '<span style="color:var(--muted)">—</span>';
+              return `<td title="${v||''}">${disp}</td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-title">JSON brut complet</div>
+    <div class="raw">${colorizeJson(JSON.stringify(data, null, 2))}</div>
+    ` : '<div style="color:var(--muted);font-family:var(--mono);font-size:13px">Aucun résultat.</div>'}
+  </div>`;
+}
+
+/* ─────────────────────────────────────────
+   JSON COLORIZER
+───────────────────────────────────────── */
+function colorizeJson(str) {
+  return str
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return `<span class="json-key">${m}</span>`;
+        return `<span class="json-str">${m}</span>`;
+      }
+      if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
+      return `<span class="json-num">${m}</span>`;
+    });
+}
+
+/* ─────────────────────────────────────────
+   ONGLET ADRESSE
+───────────────────────────────────────── */
+// ── État des filtres ──
+const activeFilters = { etiq_dpe: new Set(), etiq_ges: new Set(), periode: new Set(), energie: new Set(), type_hab: new Set() };
+
+function toggleFilter(btn) {
+  const group = btn.dataset.group;
+  const val   = btn.dataset.val;
+  if (activeFilters[group].has(val)) {
+    activeFilters[group].delete(val);
+    btn.classList.remove('active');
+  } else {
+    activeFilters[group].add(val);
+    btn.classList.add('active');
+  }
+  updateFilterBadge();
+}
+
+function updateFilterBadge() {
+  let count = 0;
+  Object.values(activeFilters).forEach(s => count += s.size);
+  const dMin = document.getElementById('f-date-min').value;
+  const dMax = document.getElementById('f-date-max').value;
+  const sMin = document.getElementById('f-surf-min').value;
+  const sMax = document.getElementById('f-surf-max').value;
+  if (dMin) count++;
+  if (dMax) count++;
+  if (sMin) count++;
+  if (sMax) count++;
+  const badge = document.getElementById('filter-badge');
+  if (count > 0) { badge.textContent = count; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+}
+
+function resetFilters() {
+  Object.keys(activeFilters).forEach(g => activeFilters[g].clear());
+  document.querySelectorAll('.f-btn, .f-btn-sm').forEach(b => b.classList.remove('active'));
+  document.getElementById('f-date-min').value = '';
+  document.getElementById('f-date-max').value = '';
+  document.getElementById('f-surf-min').value = '';
+  document.getElementById('f-surf-max').value = '';
+  document.getElementById('f-sort').value = '-date_etablissement_dpe';
+  updateFilterBadge();
+}
+
+function buildQsFilters() {
+  // Construit les filtres qs pour l&#39;API ADEME
+  const parts = [];
+
+  if (activeFilters.etiq_dpe.size > 0) {
+    const vals = [...activeFilters.etiq_dpe].map(v => 'etiquette_dpe:' + v).join(' OR ');
+    parts.push(activeFilters.etiq_dpe.size === 1 ? 'etiquette_dpe:' + [...activeFilters.etiq_dpe][0] : '(' + vals + ')');
+  }
+  if (activeFilters.etiq_ges.size > 0) {
+    const vals = [...activeFilters.etiq_ges].map(v => 'etiquette_ges:' + v).join(' OR ');
+    parts.push(activeFilters.etiq_ges.size === 1 ? 'etiquette_ges:' + [...activeFilters.etiq_ges][0] : '(' + vals + ')');
+  }
+  if (activeFilters.periode.size > 0) {
+    const vals = [...activeFilters.periode].map(v => 'periode_construction:"' + v + '"').join(' OR ');
+    parts.push(activeFilters.periode.size === 1 ? 'periode_construction:"' + [...activeFilters.periode][0] + '"' : '(' + vals + ')');
+  }
+  if (activeFilters.energie.size > 0) {
+    const vals = [...activeFilters.energie].map(v => 'type_energie_principale_chauffage:"' + v + '"').join(' OR ');
+    parts.push(activeFilters.energie.size === 1 ? 'type_energie_principale_chauffage:"' + [...activeFilters.energie][0] + '"' : '(' + vals + ')');
+  }
+  if (activeFilters.type_hab.size > 0) {
+    const vals = [...activeFilters.type_hab].map(v => 'type_batiment:' + v).join(' OR ');
+    parts.push(activeFilters.type_hab.size === 1 ? 'type_batiment:' + [...activeFilters.type_hab][0] : '(' + vals + ')');
+  }
+
+  // Dates
+  const dMin = document.getElementById('f-date-min').value;
+  const dMax = document.getElementById('f-date-max').value;
+  if (dMin || dMax) {
+    const from = dMin || '*';
+    const to   = dMax || '*';
+    parts.push('date_etablissement_dpe:[' + from + ' TO ' + to + ']');
+  }
+
+  // Surface
+  const sMin = document.getElementById('f-surf-min').value;
+  const sMax = document.getElementById('f-surf-max').value;
+  if (sMin || sMax) {
+    const from = sMin || '*';
+    const to   = sMax || '*';
+    parts.push('surface_habitable_logement:[' + from + ' TO ' + to + ']');
+  }
+
+  return parts.join(' AND ');
+}
+
+async function searchAddr() {
+  const num   = document.getElementById('inp-num').value.trim();
+  const rue   = document.getElementById('inp-rue').value.trim();
+  const ville = document.getElementById('inp-ville').value.trim();
+  const size  = document.getElementById('inp-addr-size').value;
+  const sort  = document.getElementById('f-sort').value;
+
+  if (!rue && !ville && !num) {
+    setStatus('addr', 'err', '⚠ Renseignez au moins une ville ou une rue.');
+    return;
+  }
+
+  const q = [num, rue, ville].filter(Boolean).join(' ');
+  const params = { q, size, sort };
+
+  const qs = buildQsFilters();
+  if (qs) params.qs = qs;
+
+  const url = buildUrl(params);
+  document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+
+  const data = await apiFetch(url, 'btn-addr', 'addr');
+  if (!data) return;
+  renderAddrResults(data, q);
+}
+
+function renderAddrResults(data, query) {
+  const el = document.getElementById('result-addr');
+  const res = data.results || [];
+  const total = data.total || 0;
+
+  if (!res.length) {
+    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.</div>';
+    return;
+  }
+
+  const etiqColors = {
+    A:{bg:'#1a5c3a',tx:'#4ade80'}, B:{bg:'#2d5e16',tx:'#86efac'},
+    C:{bg:'#4d6b0f',tx:'#bef264'}, D:{bg:'#7c5a08',tx:'#fde68a'},
+    E:{bg:'#7c3a08',tx:'#fdba74'}, F:{bg:'#7c1212',tx:'#fca5a5'},
+    G:{bg:'#500d0d',tx:'#ef4444'}
+  };
+
+  function badge(v) {
+    if (!v) return '<span style="color:var(--muted)">—</span>';
+    const c = etiqColors[v] || {bg:'#333',tx:'#fff'};
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;font-size:13px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+  }
+
+  let html = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px">'
+    + '<span style="color:var(--accent);font-weight:600">' + total.toLocaleString('fr-FR') + '</span>'
+    + ' DPE trouvés · ' + res.length + ' affichés'
+    + '</div>';
+
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+
+  res.forEach(function(d) {
+    const eDpe = d['etiquette_dpe'] || '';
+    const eGes = d['etiquette_ges'] || '';
+    const adresse = d['adresse_ban'] || d['adresse_brut'] || '';
+    const adresseBrut = d['adresse_brut'] || '';
+    const cp = d['code_postal_ban'] || '';
+    const ville2 = d['nom_commune_ban'] || '';
+    const surf = d['surface_habitable_logement'] ? fmtN(d['surface_habitable_logement']) + ' m²' : '—';
+    const periode = d['periode_construction'] || '—';
+    const conso = d['conso_5_usages_par_m2_ef'] ? fmtN(d['conso_5_usages_par_m2_ef']) + ' kWh/m²' : '—';
+    const cout = d['cout_total_5_usages'] ? fmtN(d['cout_total_5_usages']) + ' €/an' : '—';
+    const numDpe = d['numero_dpe'] || '';
+    const dateEtab = d['date_etablissement_dpe'] || '';
+    const energie = d['type_energie_principale_chauffage'] || '—';
+
+
+    // Coordonnées GPS WGS84 — utiliser _geopoint (lat,lon) pas les coordonnées Lambert 93
+    const geopoint = d['_geopoint'] || '';
+    let lat = null, lon = null;
+    if (geopoint) {
+      const parts2 = geopoint.split(',');
+      lat = parseFloat(parts2[0]); // latitude WGS84
+      lon = parseFloat(parts2[1]); // longitude WGS84
+    }
+
+    const adresseEncode = encodeURIComponent((adresseBrut || adresse) + ' ' + cp + ' ' + ville2);
+    const googleMapsUrl = lat && lon
+      ? 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon
+      : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+
+    // Street View : utiliser les coordonnées GPS WGS84 exactes
+    const streetViewUrl = lat && lon
+      ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lon
+      : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+
+    const ademeUrl   = numDpe ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + numDpe : '';
+
+    // Cadastre & RNB
+    const rnbId      = d['id_rnb'] || '';
+    const rnbUrl     = rnbId ? 'https://rnb.beta.gouv.fr/batiment/' + rnbId : '';
+
+    // Cadastre.gouv.fr — centré sur les coordonnées GPS
+    const cadastreUrl = lat && lon
+      ? 'https://www.cadastre.gouv.fr/scpc/rechercherPlan.do?lng=' + lon + '&lat=' + lat
+      : '';
+
+    // IGN Géoportail — couche cadastrale parcellaire
+    const ignUrl = lat && lon
+      ? 'https://www.geoportail.gouv.fr/carte?c=' + lon + ',' + lat + '&z=20&l0=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(1)&l1=CADASTRALPARCELS.PARCELLAIRE_EXPRESS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes'
+      : '';
+
+    // Iframe Google Maps embed centrée sur les coordonnées GPS exactes
+    const mapEmbedSrc = lat && lon
+      ? 'https://maps.google.com/maps?q=' + lat + ',' + lon + '&output=embed&z=18'
+      : 'https://maps.google.com/maps?q=' + adresseEncode + '&output=embed&z=17';
+
+    // Fonction inline pour charger la fiche complète
+    const dJson = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+
+    html += '<div class="addr-result-card" style="display:grid;grid-template-columns:130px 1fr auto;gap:0;overflow:hidden">'
+
+      // ── Colonne vignette carto ──
+      + '<div style="position:relative;background:#1a1a1a;display:flex;flex-direction:column">'
+      // Vignette Google Maps (iframe embed léger)
+      + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" title="Voir sur Google Maps" style="display:block;flex:1;overflow:hidden;text-decoration:none">'
+      + '<iframe src="' + mapEmbedSrc + '" '
+      + 'width="130" height="90" style="border:none;pointer-events:none;display:block" loading="lazy" referrerpolicy="no-referrer"></iframe>'
+      + '<div style="position:absolute;top:0;left:0;right:0;bottom:20px;cursor:pointer"></div>'
+      + '</a>'
+      // Lien Street View en bas de la vignette
+      + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" '
+      + 'style="display:flex;align-items:center;justify-content:center;gap:4px;padding:3px 6px;background:rgba(0,0,0,.7);font-size:10px;color:#4ade80;text-decoration:none;font-family:var(--mono)">'
+      + '👁 Street View</a>'
+      + '</div>'
+
+      // ── Colonne infos principale ──
+      + '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;min-width:0">'
+
+      // Ligne 1 : badges + adresse
+      + '<div style="display:flex;align-items:flex-start;gap:10px">'
+      + '<div style="display:flex;gap:5px;flex-shrink:0">' + badge(eDpe) + badge(eGes) + '</div>'
+      + '<div style="min-width:0">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + adresseBrut + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);font-family:var(--mono)">' + cp + ' ' + ville2 + '</div>'
+      + '</div></div>'
+
+      // Ligne 2 : métriques clés
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap">'
+      + '<span style="font-size:11px;color:var(--muted)">📐 <strong style="color:var(--text)">' + surf + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">🏗 <strong style="color:var(--text)">' + periode + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">⚡ <strong style="color:var(--accent2)">' + conso + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">💰 <strong style="color:#f59e0b">' + cout + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">🔥 <strong style="color:var(--text)">' + energie + '</strong></span>'
+      + '</div>'
+
+      // Ligne 3 : liens actions
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">'
+      + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" class="action-link">🗺 Google Maps</a>'
+      + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>'
+      + (ademeUrl    ? '<a href="' + ademeUrl    + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 ADEME</a>' : '')
+      + (cadastreUrl ? '<a href="' + cadastreUrl + '" target="_blank" rel="noopener" class="action-link" style="color:#f59e0b">📐 Cadastre</a>' : '')
+      + (ignUrl      ? '<a href="' + ignUrl      + '" target="_blank" rel="noopener" class="action-link" style="color:#a78bfa">🗾 IGN Parcelle</a>' : '')
+      + (rnbUrl      ? '<a href="' + rnbUrl      + '" target="_blank" rel="noopener" class="action-link" style="color:#22d3ee">🏗 RNB</a>' : '')
+      + '<button onclick="loadDpeFromAddrB64(\'' + dJson + '\')" class="action-link action-btn">🔍 Détail complet</button>'
+      + '</div>'
+
+      + '</div>'
+
+      // ── Colonne méta droite ──
+      + '<div style="padding:12px 14px;text-align:right;border-left:1px solid var(--border);min-width:110px;display:flex;flex-direction:column;gap:6px;justify-content:center">'
+      + '<div>'
+      + '<div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">N° DPE</div>'
+      + '<div style="font-size:10px;font-weight:600;color:var(--accent);font-family:var(--mono);word-break:break-all">' + numDpe + '</div>'
+      + '</div>'
+      + '<div>'
+      + '<div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Établi le</div>'
+      + '<div style="font-size:11px;font-family:var(--mono)">' + dateEtab + '</div>'
+      + '</div>'
+      + '</div>'
+
+      + '</div>';
+  });
+
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function loadDpeFromAddr(jsonStr) {
+  const d = JSON.parse(jsonStr);
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-search').classList.add('active');
+  document.querySelectorAll('.nav-item')[0].classList.add('active');
+  document.getElementById('result-search').innerHTML = renderDpeCard(d, 1);
+  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>Chargé depuis la recherche adresse</span>';
+  window.scrollTo(0, 0);
+}
+
+function loadDpeFromAddrB64(b64) {
+  try {
+    const json = decodeURIComponent(escape(atob(b64)));
+    loadDpeFromAddr(json);
+  } catch(e) {
+    console.error('Erreur B64:', e);
+  }
+}
+
+// Exposer au scope global window pour les onclick générés via innerHTML
+window.loadDpeFromAddr    = loadDpeFromAddr;
+window.loadDpeFromAddrB64 = loadDpeFromAddrB64;
+window.toggleFilter       = toggleFilter;
+window.resetFilters       = resetFilters;
+window.updateFilterBadge  = updateFilterBadge;
+window.searchAddr         = searchAddr;
+
+/* ─────────────────────────────────────────
+   PLAN DE RÉNOVATION — Import XML
+───────────────────────────────────────── */
+
+// Drag & drop sur la zone reno
+document.addEventListener('DOMContentLoaded', function() {
+  const drop = document.getElementById('reno-drop');
+  if (drop) {
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--accent)'; });
+    drop.addEventListener('dragleave', () => { drop.style.borderColor = 'rgba(255,255,255,.15)'; });
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.style.borderColor = 'rgba(255,255,255,.15)';
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.xml')) {
+        const dt = new DataTransfer(); dt.items.add(file);
+        document.getElementById('reno-xml-input').files = dt.files;
+        loadRenoXml(document.getElementById('reno-xml-input'));
+      }
+    });
+  }
+});
+
+function loadRenoXml(input) {
+  const file = input.files[0];
+  if (!file) return;
+  setStatus('reno', 'info', '<span class="spin">↻</span> &nbsp;Lecture du fichier XML...');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(e.target.result, 'application/xml');
+      const parseErr = doc.querySelector('parsererror');
+      if (parseErr) throw new Error('XML invalide : ' + parseErr.textContent.slice(0,80));
+      const data = parseXmlDpe(doc);
+      clearStatus('reno');
+      document.getElementById('result-reno').innerHTML = renderRenoPlan(data);
+      // Mettre à jour le titre de la drop zone
+      document.getElementById('reno-drop').innerHTML =
+        '<div style="font-size:20px">✅</div>' +
+        '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-top:8px">' + file.name + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">N° ' + (data.meta.numero_dpe || '?') + ' · ' + (data.meta.adresse || '') + '</div>';
+    } catch(err) {
+      setStatus('reno', 'err', '✖ ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function xget(doc, tag, idx) {
+  const els = doc.getElementsByTagName(tag);
+  idx = idx || 0;
+  return (els[idx] && els[idx].textContent) ? els[idx].textContent.trim() : null;
+}
+
+const ORIENT = {'1':'Nord','2':'Est','3':'Sud','4':'Ouest','5':'NE','6':'NO','7':'SE','8':'SO','9':'Horizontal'};
+const ADJ    = {'1':'Extérieur','2':'LNC','3':'Terre-plein','4':'Sous-sol NC','5':'Vide sanitaire','6':'LCC','7':'Circulation','8':'Communs','10':'Extérieur','11':'Comble perdu','12':'Comble aménagé'};
+const VITRAGE= {'1':'Simple','2':'Double','3':'Triple','4':'Double fenêtre'};
+const MATMUR = {'1':'Brique','2':'Béton banché','3':'Pierre de taille','4':'Parpaing','5':'Bois','6':'Autre','7':'Pierre calcaire','8':'Pisé','9':'Béton cellulaire'};
+const LOTS   = {'1':['🧱','Isolation murs'],'2':['🪨','Isolation plancher bas'],'3':['🏠','Isolation toiture'],'4':['🪟','Menuiseries'],'5':['🔥','Chauffage'],'6':['🚿','ECS'],'7':['💡','Éclairage'],'8':['💨','Ventilation'],'9':['🔒','Étanchéité'],'10':['☀️','ENR']};
+
+function calcEtiq(conso_m2) {
+  if (conso_m2 <= 70) return 'A';
+  if (conso_m2 <= 110) return 'B';
+  if (conso_m2 <= 180) return 'C';
+  if (conso_m2 <= 250) return 'D';
+  if (conso_m2 <= 330) return 'E';
+  if (conso_m2 <= 420) return 'F';
+  return 'G';
+}
+
+const ETIQ_COLORS = {A:{bg:'#1a5c3a',tx:'#4ade80'},B:{bg:'#2d5e16',tx:'#86efac'},C:{bg:'#4d6b0f',tx:'#bef264'},D:{bg:'#7c5a08',tx:'#fde68a'},E:{bg:'#7c3a08',tx:'#fdba74'},F:{bg:'#7c1212',tx:'#fca5a5'},G:{bg:'#500d0d',tx:'#ef4444'}};
+
+function etiqPill(v, size) {
+  const c = ETIQ_COLORS[v] || {bg:'#333',tx:'#fff'};
+  const sz = size === 'lg' ? '38px;font-size:20px' : '26px;font-size:13px';
+  return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + sz + ';height:' + (size==='lg'?38:26) + 'px;border-radius:6px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+}
+
+function parseXmlDpe(doc) {
+  const surf = parseFloat(xget(doc,'surface_habitable_logement') || xget(doc,'surface_habitable') || 0);
+  const niv  = parseInt(xget(doc,'nombre_niveau_logement') || 1);
+  const hsp  = parseFloat(xget(doc,'hsp') || 2.5);
+
+  const murs = [];
+  for (const mur of doc.getElementsByTagName('mur')) {
+    const de = mur.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g  = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const um = mur.getElementsByTagName('umur')[0];
+    const s  = parseFloat(g('surface_paroi_opaque') || 0);
+    if (!s) continue;
+    murs.push({
+      surface: s,
+      orientation: ORIENT[g('enum_orientation_id')] || '?',
+      adjacence: ADJ[g('enum_type_adjacence_id')] || '?',
+      materiau: MATMUR[g('enum_materiaux_structure_mur_id')] || '?',
+      U: um ? parseFloat(um.textContent) : null,
+      versExt: g('enum_type_adjacence_id') === '1',
+    });
+  }
+
+  const baies = [];
+  for (const bv of doc.getElementsByTagName('baie_vitree')) {
+    const de = bv.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const uw = bv.getElementsByTagName('uw')[0];
+    const s  = parseFloat(g('surface_totale_baie') || 0);
+    if (!s) continue;
+    baies.push({
+      surface: s,
+      nb: parseInt(g('nb_baie') || 1),
+      orientation: ORIENT[g('enum_orientation_id')] || '?',
+      vitrage: VITRAGE[g('enum_type_vitrage_id')] || '?',
+      Uw: uw ? parseFloat(uw.textContent) : null,
+    });
+  }
+
+  const pts = [];
+  const TYPE_PT = {'1':'PB/mur','2':'PI/mur','3':'PH/mur','4':'Refend/mur','5':'Menuiserie/mur','6':'Angle sortant','7':'Angle rentrant'};
+  for (const pt of doc.getElementsByTagName('pont_thermique')) {
+    const de = pt.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const k = pt.getElementsByTagName('k')[0];
+    pts.push({
+      type: TYPE_PT[g('enum_type_liaison_id')] || '?',
+      longueur: parseFloat(g('l') || 0),
+      k: k ? parseFloat(k.textContent) : 0,
+    });
+  }
+
+  const dep = doc.getElementsByTagName('deperdition')[0];
+  const deperditions = dep ? {
+    murs: parseFloat(dep.getElementsByTagName('deperdition_mur')[0]?.textContent || 0),
+    plancher_bas: parseFloat(dep.getElementsByTagName('deperdition_plancher_bas')[0]?.textContent || 0),
+    plancher_haut: parseFloat(dep.getElementsByTagName('deperdition_plancher_haut')[0]?.textContent || 0),
+    baies: parseFloat(dep.getElementsByTagName('deperdition_baie_vitree')[0]?.textContent || 0),
+    portes: parseFloat(dep.getElementsByTagName('deperdition_porte')[0]?.textContent || 0),
+    pts: parseFloat(dep.getElementsByTagName('deperdition_pont_thermique')[0]?.textContent || 0),
+    air: parseFloat(dep.getElementsByTagName('deperdition_renouvellement_air')[0]?.textContent || 0),
+    total: parseFloat(dep.getElementsByTagName('deperdition_enveloppe')[0]?.textContent || 0),
+  } : {};
+
+  const scenarios = [];
+  for (const pack of doc.getElementsByTagName('pack_travaux')) {
+    const num     = pack.getElementsByTagName('enum_num_pack_travaux_id')[0];
+    const cMin    = pack.getElementsByTagName('cout_pack_travaux_min')[0];
+    const cMax    = pack.getElementsByTagName('cout_pack_travaux_max')[0];
+    const consoAp = pack.getElementsByTagName('conso_5_usages_apres_travaux')[0];
+    const gesAp   = pack.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
+    const conso_a = consoAp ? parseFloat(consoAp.textContent) : 0;
+    // conso_5_usages_apres_travaux est en kWh/m²/an (pas en kWh total)
+    const m2_ap   = Math.round(conso_a);
+    const cout_mn = cMin ? parseFloat(cMin.textContent) : 0;
+    const cout_mx = cMax ? parseFloat(cMax.textContent) : 0;
+    const etapes  = [];
+    const tc = pack.getElementsByTagName('travaux_collection')[0];
+    if (tc) {
+      for (const trav of tc.getElementsByTagName('travaux')) {
+        const lot  = trav.getElementsByTagName('enum_lot_travaux_id')[0];
+        const desc = trav.getElementsByTagName('description_travaux')[0];
+        const perf = trav.getElementsByTagName('performance_recommande')[0];
+        const cet  = trav.getElementsByTagName('conso_5_usages_apres_travaux')[0];
+        const get2 = trav.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
+        const lotId = lot ? lot.textContent.trim() : '?';
+        const c_et = cet ? parseFloat(cet.textContent) : null;
+        // conso_5_usages_apres_travaux des étapes est aussi en kWh/m²/an
+        etapes.push({
+          lot: lotId,
+          info: LOTS[lotId] || ['🔧', lotId],
+          desc: desc ? desc.textContent.trim() : '',
+          perf: perf ? perf.textContent.trim() : '',
+          conso_ap: c_et,
+          m2_ap: c_et ? Math.round(c_et) : null,
+          etiq_ap: c_et ? calcEtiq(c_et) : null,
+          ges_ap: get2 ? parseFloat(get2.textContent) : null,
+        });
+      }
+    }
+    scenarios.push({
+      id: num ? num.textContent.trim() : '?',
+      etiq_av: xget(doc, 'classe_bilan_dpe'),
+      etiq_ap: calcEtiq(m2_ap),
+      conso_av_m2: parseFloat(xget(doc,'conso_5_usages_m2') || 0),
+      conso_ap_kwh: conso_a,
+      conso_ap_m2: m2_ap,
+      ges_av: parseFloat(xget(doc,'emission_ges_5_usages_m2') || 0),
+      ges_ap: gesAp ? parseFloat(gesAp.textContent) : 0,
+      cout_min: cout_mn,
+      cout_max: cout_mx,
+      etapes,
+    });
+  }
+
+  return {
+    meta: {
+      numero_dpe: xget(doc,'numero_dpe'),
+      adresse: xget(doc,'adresse_brut'),
+      date_visite: xget(doc,'date_visite_diagnostiqueur'),
+      date_dpe: xget(doc,'date_etablissement_dpe'),
+      etiq_dpe: xget(doc,'classe_bilan_dpe'),
+      etiq_ges: xget(doc,'classe_emission_ges'),
+      logiciel: xget(doc,'version_logiciel'),
+    },
+    logement: { surface: surf, niveaux: niv, hsp },
+    performance: {
+      conso_ef_m2: parseFloat(xget(doc,'conso_5_usages_m2') || 0),
+      conso_ep_m2: parseFloat(xget(doc,'ep_conso_5_usages_m2') || 0),
+      ges_m2: parseFloat(xget(doc,'emission_ges_5_usages_m2') || 0),
+      cout_total: parseFloat(xget(doc,'cout_5_usages') || 0),
+      cout_ch: parseFloat(xget(doc,'cout_ch') || 0),
+      cout_ecs: parseFloat(xget(doc,'cout_ecs') || 0),
+      cout_eclairage: parseFloat(xget(doc,'cout_eclairage') || 0),
+    },
+    murs, baies, ponts: pts, deperditions, scenarios,
+  };
+}
+
+function renderRenoPlan(d) {
+  const m = d.meta;
+  const l = d.logement;
+  const p = d.performance;
+  const dep = d.deperditions;
+  const depTotal = dep.total || 1;
+
+  const fmtK = v => v >= 1000 ? (v/1000).toFixed(1) + 'k€' : Math.round(v) + ' €';
+  const fmtN = (v, u) => v ? Math.round(v).toLocaleString('fr-FR') + (u||'') : '—';
+
+  // Entête
+  let html = '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">';
+  html += '<div style="display:flex;gap:8px">' + etiqPill(m.etiq_dpe,'lg') + '<span style="color:var(--muted);font-size:18px;align-self:center">/</span>' + etiqPill(m.etiq_ges,'lg') + '</div>';
+  html += '<div><div style="font-size:15px;font-weight:700">' + (m.adresse||'') + '</div>';
+  html += '<div style="font-size:12px;color:var(--muted);font-family:var(--mono)">' + (m.numero_dpe||'') + ' · ' + l.surface + ' m² · ' + l.niveaux + ' niveau(x) · HSP ' + l.hsp + ' m</div>';
+  html += '<div style="font-size:11px;color:var(--muted);margin-top:4px">Visité le ' + (m.date_visite||'?') + ' · ' + (m.logiciel||'') + '</div></div></div>';
+
+  // KPIs
+  html += '<div class="kpi-row">';
+  html += '<div class="kpi-box"><div class="v" style="color:#22d3ee">' + fmtN(p.conso_ef_m2,' kWh/m²') + '</div><div class="l">Conso EF/m²/an</div></div>';
+  html += '<div class="kpi-box"><div class="v" style="color:#f87171">' + fmtN(p.ges_m2,' kg CO₂') + '</div><div class="l">GES/m²/an</div></div>';
+  html += '<div class="kpi-box"><div class="v" style="color:#f59e0b">' + fmtN(p.cout_total,' €') + '</div><div class="l">Coût total/an</div></div>';
+  html += '<div class="kpi-box"><div class="v">' + fmtN(p.cout_ch,' €') + '</div><div class="l">dont chauffage</div></div>';
+  html += '</div>';
+
+  // Déperditions
+  if (dep.total) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">📉</span><span style="font-size:13px;font-weight:600;color:var(--text)">Déperditions thermiques</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + fmtN(dep.total,' W/K total') + '</span></div><div class="reno-card-body">';
+    const depItems = [
+      ['Murs', dep.murs,'#ef4444'],
+      ['Renouvellement air', dep.air,'#f97316'],
+      ['Plancher haut', dep.plancher_haut,'#eab308'],
+      ['Baies vitrées', dep.baies,'#22d3ee'],
+      ['Portes', dep.portes,'#a78bfa'],
+      ['Ponts thermiques', dep.pts,'#6b7280'],
+      ['Plancher bas', dep.plancher_bas,'#6b7280'],
+    ].filter(x => x[1] > 0).sort((a,b) => b[1]-a[1]);
+    depItems.forEach(([label,val,color]) => {
+      const pct = Math.round((val/depTotal)*100);
+      html += '<div class="dep-bar-row"><span class="dep-label">' + label + '</span>';
+      html += '<div class="dep-track"><div class="dep-fill" style="width:' + pct + '%;background:' + color + ';opacity:.7"></div></div>';
+      html += '<span class="dep-val">' + pct + '% <span style="color:var(--muted)">' + Math.round(val) + '</span></span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Parois
+  const mursExt = d.murs.filter(m2 => m2.versExt);
+  if (mursExt.length) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">🧱</span><span style="font-size:13px;font-weight:600">Murs donnant sur extérieur</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + mursExt.length + ' paroi(s)</span></div><div class="reno-card-body">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">';
+    mursExt.forEach(m2 => {
+      const uColor = !m2.U ? '#6b7280' : m2.U < 0.4 ? '#4ade80' : m2.U < 0.8 ? '#86efac' : m2.U < 1.5 ? '#fde68a' : '#fca5a5';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+      html += '<span style="font-size:11px;font-weight:600;color:var(--text)">' + m2.orientation + '</span>';
+      html += '<span style="font-size:11px;font-family:var(--mono);color:' + uColor + '">' + (m2.U ? 'U=' + m2.U.toFixed(2) : '—') + '</span></div>';
+      html += '<div style="font-size:10px;color:var(--muted)">' + m2.materiau + ' · ' + m2.surface + ' m²</div></div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  // Baies
+  if (d.baies.length) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">🪟</span><span style="font-size:13px;font-weight:600">Baies vitrées</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + d.baies.reduce((a,b)=>a+b.nb,0) + ' baie(s) · ' + d.baies.reduce((a,b)=>a+b.surface,0).toFixed(1) + ' m²</span></div><div class="reno-card-body">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">';
+    d.baies.forEach(bv => {
+      const uColor = !bv.Uw ? '#6b7280' : bv.Uw < 1 ? '#4ade80' : bv.Uw < 1.5 ? '#86efac' : bv.Uw < 2.5 ? '#fde68a' : '#fca5a5';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+      html += '<span style="font-size:11px;font-weight:600;color:var(--text)">' + bv.orientation + ' · ×' + bv.nb + '</span>';
+      html += '<span style="font-size:11px;font-family:var(--mono);color:' + uColor + '">' + (bv.Uw ? 'Uw=' + bv.Uw.toFixed(1) : '—') + '</span></div>';
+      html += '<div style="font-size:10px;color:var(--muted)">' + bv.vitrage + ' · ' + bv.surface + ' m²</div></div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  // Scénarios de rénovation
+  if (d.scenarios.length) {
+    html += '<div style="font-size:15px;font-weight:700;margin:20px 0 12px">🔧 Scénarios de rénovation</div>';
+    d.scenarios.forEach((sc, i) => {
+      // Gain annuel = économie sur le coût total proportionnelle à la baisse de conso
+      const gain_ratio = p.conso_ef_m2 > 0 ? (p.conso_ef_m2 - sc.conso_ap_m2) / p.conso_ef_m2 : 0;
+      const gain = gain_ratio > 0 ? Math.round(p.cout_total * gain_ratio) : null;
+      html += '<div class="reno-card">';
+      html += '<div class="reno-card-head">';
+      html += '<div class="scenario-num" style="background:rgba(74,222,128,.15);color:var(--accent)">' + (i+1) + '</div>';
+      html += '<div style="flex:1"><div style="font-size:13px;font-weight:600">Scénario ' + (i+1) + ' — ' + (sc.etapes.length === 1 ? 'En une étape' : sc.etapes.length + ' étapes') + '</div>';
+      html += '<div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px">' + sc.etapes.map(e => e.info[0]+' '+e.info[1]).join(' · ') + '</div></div>';
+      html += '<div style="display:flex;align-items:center;gap:6px">' + etiqPill(sc.etiq_av) + '<span style="color:var(--muted);font-size:14px">→</span>' + etiqPill(sc.etiq_ap) + '</div></div>';
+      html += '<div class="reno-card-body">';
+
+      // Métriques scénario
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      const coutStr = sc.cout_min > 500 
+        ? fmtK(sc.cout_min) + ' → ' + fmtK(sc.cout_max)
+        : '<span style="font-size:12px;color:var(--muted)">Non renseigné</span>';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f59e0b">' + coutStr + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Coût estimé</div></div>';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#22d3ee">' + fmtN(sc.conso_ap_m2,' kWh/m²') + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Conso après</div></div>';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#4ade80">' + (gain ? '-'+fmtN(gain,' €/an') : '—') + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Gain annuel estimé</div></div>';
+      html += '</div>';
+
+      // Étapes
+      html += '<div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Travaux préconisés</div>';
+      sc.etapes.forEach(etape => {
+        html += '<div class="lot-row">';
+        html += '<div class="lot-icon">' + etape.info[0] + '</div>';
+        html += '<div class="lot-body">';
+        html += '<div class="lot-label">' + etape.info[1] + '</div>';
+        html += '<div class="lot-desc">' + (etape.desc || '').split('\n').join('<br>') + '</div>';
+        if (etape.perf) html += '<div class="lot-perf">' + etape.perf + '</div>';
+        if (etape.m2_ap !== null) {
+          html += '<div style="margin-top:6px;font-size:11px;color:var(--muted);font-family:var(--mono)">';
+          html += 'Après cette étape : ' + etape.m2_ap + ' kWh/m² ' + etiqPill(etape.etiq_ap);
+          if (etape.ges_ap) html += ' · ' + Math.round(etape.ges_ap/l.surface) + ' kg CO₂/m²';
+          html += '</div>';
+        }
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+    });
+  } else {
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-size:13px;text-align:center">Aucun scénario de rénovation trouvé dans ce fichier XML.</div>';
+  }
+  return html;
+}
+
+window.loadRenoXml = loadRenoXml;
+
+/* ─────────────────────────────────────────
+   VISUALISATION 3D THERMIQUE
+───────────────────────────────────────── */
+
+let renderer3d = null, scene3d = null, camera3d = null;
+let animFrame3d = null, dpe3dData = null;
+let isDragging = false, prevMouse = {x:0,y:0};
+let camTheta = Math.PI/4, camPhi = Math.PI/3, camDist = 18;
+let wallMeshes = [], windowMeshes = [];
+let renoMode = false, xrayMode = false;
+
+// Colormap U-value : vert (bon) → rouge (mauvais)
+function uColor(U, max_U) {
+  if (U === null || U === undefined) return new THREE.Color(0x444455);
+  const t = Math.min(U / (max_U || 2.5), 1);
+  // Gradient : #1a9e56 → #f59e0b → #ef4444
+  if (t < 0.5) {
+    const s = t * 2;
+    return new THREE.Color(
+      0x1a/255 + (0xf5/255 - 0x1a/255)*s,
+      0x9e/255 + (0x9e/255 - 0x9e/255)*s,
+      0x56/255 + (0x0b/255 - 0x56/255)*s
+    );
+  } else {
+    const s = (t-0.5)*2;
+    return new THREE.Color(
+      0xf5/255 + (0xef/255 - 0xf5/255)*s,
+      0x9e/255 + (0x44/255 - 0x9e/255)*s,
+      0x0b/255 + (0x44/255 - 0x0b/255)*s
+    );
+  }
+}
+
+// Orientation → vecteur normal + angle
+const ORIENT_VEC = {
+  'N': { nx:0, nz:-1, angle: 0 },
+  'S': { nx:0, nz:1,  angle: Math.PI },
+  'E': { nx:1, nz:0,  angle: Math.PI/2 },
+  'O': { nx:-1,nz:0,  angle: -Math.PI/2 },
+};
+
+function load3dXml(input) {
+  const file = input.files[0];
+  if (!file) return;
+  setStatus('3d', 'info', '<span class="spin">↻</span> &nbsp;Lecture XML et construction 3D...');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(e.target.result, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('XML invalide');
+      dpe3dData = parseXmlDpe(doc); // réutilise parseXmlDpe du plan réno
+      build3dScene(dpe3dData);
+      clearStatus('3d');
+      document.getElementById('drop3d').innerHTML =
+        '<div style="font-size:16px;color:var(--accent)">✅ ' + file.name + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + (dpe3dData.meta.adresse||'') + ' · ' + (dpe3dData.meta.numero_dpe||'') + '</div>';
+      document.getElementById('controls3d').style.display = 'flex';
+      document.getElementById('canvas3d-wrap').style.display = 'block';
+      document.getElementById('parois3d-stats').style.display = 'block';
+      renderParoisStats(dpe3dData);
+    } catch(err) {
+      setStatus('3d', 'err', '✖ ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function build3dScene(d) {
+  const wrap = document.getElementById('canvas3d-wrap');
+  const canvas = document.getElementById('canvas3d');
+  const W = wrap.clientWidth || 800;
+  const H = 500;
+  canvas.width = W; canvas.height = H;
+
+  // Nettoyer la scène précédente
+  if (renderer3d) { renderer3d.dispose(); }
+  if (animFrame3d) cancelAnimationFrame(animFrame3d);
+  wallMeshes = []; windowMeshes = [];
+
+  scene3d = new THREE.Scene();
+  scene3d.background = new THREE.Color(0x0a0a0f);
+  scene3d.fog = new THREE.Fog(0x0a0a0f, 30, 60);
+
+  renderer3d = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer3d.setSize(W, H);
+  renderer3d.shadowMap.enabled = true;
+  renderer3d.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  camera3d = new THREE.PerspectiveCamera(45, W/H, 0.1, 200);
+  updateCamera3d();
+
+  // Lumières
+  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+  scene3d.add(ambient);
+  const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
+  sun.position.set(10, 20, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
+  scene3d.add(sun);
+  const fill = new THREE.DirectionalLight(0x8888ff, 0.3);
+  fill.position.set(-10, 5, -10);
+  scene3d.add(fill);
+
+  // Calculer dimensions depuis les murs extérieurs
+  const l = d.logement;
+  const surf_floor = l.surface / l.niveaux;
+  const H_tot = l.niveaux * l.hsp;
+
+  const surf_by_o = {};
+  d.murs.filter(m => m.versExt).forEach(m => {
+    surf_by_o[m.orientation] = (surf_by_o[m.orientation]||0) + m.surface;
+  });
+
+  const fNS = o => surf_by_o[o] ? surf_by_o[o]/H_tot : Math.sqrt(surf_floor);
+  const Lx = (fNS('N') + fNS('S')) / 2;
+  const Lz = (fNS('E') + fNS('O')) / 2;
+
+  // Centre du bâtiment à l'origine
+  const cx = 0, cz = 0;
+
+  // Trouver U-max pour normalisation couleurs
+  const Us = d.murs.filter(m=>m.versExt && m.U).map(m=>m.U);
+  const U_max = Us.length ? Math.max(...Us) : 2.5;
+
+  // Matériau sol
+  const groundGeo = new THREE.PlaneGeometry(40, 40);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x1a1a2e });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.01;
+  ground.receiveShadow = true;
+  scene3d.add(ground);
+
+  // Grille
+  const grid = new THREE.GridHelper(40, 40, 0x222233, 0x222233);
+  grid.position.y = 0;
+  scene3d.add(grid);
+
+  // ── CONSTRUIRE LES 4 FAÇADES ──
+  const facades = [
+    { o:'N', x:0,      z:-Lz/2, rx:cx, rz:cz, W:Lx, offX:0, offZ:-1 },
+    { o:'S', x:0,      z:Lz/2,  rx:cx, rz:cz, W:Lx, offX:0, offZ:1  },
+    { o:'E', x:Lx/2,  z:0,     rx:cx, rz:cz, W:Lz, offX:1,  offZ:0  },
+    { o:'O', x:-Lx/2, z:0,     rx:cx, rz:cz, W:Lz, offX:-1, offZ:0  },
+  ];
+
+  facades.forEach(f => {
+    const wallData = d.murs.filter(m => m.versExt && m.orientation === f.o);
+    const U_avg = wallData.length ? wallData.reduce((a,b)=>a+(b.U||1.5),0)/wallData.length : 1.5;
+    const color = uColor(U_avg, U_max);
+    const mat = new THREE.MeshPhongMaterial({
+      color, transparent: false, opacity: 1.0,
+      shininess: 20,
+    });
+    const geo = new THREE.BoxGeometry(f.W, H_tot, 0.25);
+    const mesh = new THREE.Mesh(geo, mat);
+
+    // Positionner la façade
+    if (f.o === 'N') { mesh.position.set(0, H_tot/2, -Lz/2); }
+    if (f.o === 'S') { mesh.position.set(0, H_tot/2,  Lz/2); }
+    if (f.o === 'E') { mesh.position.set(Lx/2, H_tot/2, 0); mesh.rotation.y = Math.PI/2; }
+    if (f.o === 'O') { mesh.position.set(-Lx/2, H_tot/2, 0); mesh.rotation.y = Math.PI/2; }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = {
+      type: 'wall', orient: f.o,
+      U: U_avg.toFixed(2),
+      mat: wallData[0]?.materiau || '?',
+      surf: wallData.reduce((a,b)=>a+b.surface,0).toFixed(1),
+      iso: wallData[0]?.epaisseur_iso_cm || 0,
+      originalColor: color.clone(),
+    };
+    wallMeshes.push(mesh);
+    scene3d.add(mesh);
+
+    // ── FENÊTRES ──
+    const baisOrient = d.baies.filter(b => b.orientation === f.o);
+    const totalBaie = baisOrient.reduce((a,b)=>a+b.surface,0);
+    if (totalBaie > 0) {
+      // Placer les fenêtres sur la façade
+      const winColor = new THREE.Color(0x88ccff);
+      const winMat = new THREE.MeshPhongMaterial({
+        color: winColor, transparent: true, opacity: 0.5,
+        shininess: 80, emissive: new THREE.Color(0x112233),
+      });
+      // Cadre de la fenêtre
+      const frameMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 30 });
+
+      // Distribuer les fenêtres sur la largeur de façade
+      const nbBaies = baisOrient.reduce((a,b)=>a+b.nb,0);
+      const win_w  = Math.min(totalBaie / (H_tot*0.4*nbBaies) * 1.2, f.W*0.25);
+      const win_h  = totalBaie / (nbBaies * win_w);
+      const spacing = f.W / (nbBaies + 1);
+
+      for (let i = 0; i < nbBaies; i++) {
+        const wx = -f.W/2 + spacing*(i+1);
+        const wy = H_tot*0.4;
+        const winGeo = new THREE.BoxGeometry(win_w, win_h, 0.05);
+        const winMesh = new THREE.Mesh(winGeo, winMat.clone());
+
+        if (f.o === 'N') { winMesh.position.set(wx, wy, -Lz/2 + 0.14); }
+        if (f.o === 'S') { winMesh.position.set(wx, wy,  Lz/2 - 0.14); }
+        if (f.o === 'E') { winMesh.rotation.y = Math.PI/2; winMesh.position.set(Lx/2 - 0.14, wy, -Lz/2 + spacing*(i+1) - Lz/2); }
+        if (f.o === 'O') { winMesh.rotation.y = Math.PI/2; winMesh.position.set(-Lx/2 + 0.14, wy, -Lz/2 + spacing*(i+1) - Lz/2); }
+
+        const Uw = baisOrient[0]?.Uw || 3.0;
+        winMesh.userData = {
+          type: 'window', orient: f.o,
+          U: Uw, vit: baisOrient[0]?.vitrage || '?',
+          surf: (totalBaie/nbBaies).toFixed(1),
+        };
+        windowMeshes.push(winMesh);
+        scene3d.add(winMesh);
+      }
+    }
+  });
+
+  // ── PLANCHER + TOITURE ──
+  const floorMat = new THREE.MeshPhongMaterial({ color: 0x2a2a3e, shininess: 10 });
+  const floorGeo = new THREE.BoxGeometry(Lx, 0.2, Lz);
+  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+  floorMesh.position.set(0, -0.1, 0);
+  floorMesh.receiveShadow = true;
+  scene3d.add(floorMesh);
+
+  // Toiture simple en pyramide tronquée
+  const roofH = 1.5;
+  const roofInset = 0.5;
+  const roofShape = new THREE.Shape();
+  const rx = Lx/2 + 0.3, rz = Lz/2 + 0.3;
+  roofShape.moveTo(-rx, -rz); roofShape.lineTo(rx, -rz);
+  roofShape.lineTo(rx, rz); roofShape.lineTo(-rx, rz); roofShape.closePath();
+  const extrudeRoof = { depth: 0.15, bevelEnabled: false };
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, extrudeRoof);
+  const roofMat = new THREE.MeshPhongMaterial({ color: 0x3a2a2a, shininess: 5 });
+  const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+  roofMesh.rotation.x = -Math.PI/2;
+  roofMesh.position.set(0, H_tot + 0.05, 0);
+  roofMesh.castShadow = true;
+  scene3d.add(roofMesh);
+
+  // Sol (ombre portée)
+  const shadowFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(Lx+2, Lz+2),
+    new THREE.ShadowMaterial({ opacity: 0.4 })
+  );
+  shadowFloor.rotation.x = -Math.PI/2;
+  shadowFloor.position.y = 0.01;
+  shadowFloor.receiveShadow = true;
+  scene3d.add(shadowFloor);
+
+  // Étage intermédiaire (ligne horizontale)
+  if (l.niveaux > 1) {
+    const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(Lx+0.26, 0.05, Lz+0.26));
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x888888, opacity:0.5, transparent:true });
+    const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
+    edgeLine.position.set(0, l.hsp, 0);
+    scene3d.add(edgeLine);
+  }
+
+  // Contours du bâtiment (wireframe léger)
+  const bldGeo = new THREE.BoxGeometry(Lx + 0.26, H_tot, Lz + 0.26);
+  const edges = new THREE.EdgesGeometry(bldGeo);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent:true, opacity:0.4 });
+  const wireframe = new THREE.LineSegments(edges, lineMat);
+  wireframe.position.set(0, H_tot/2, 0);
+  scene3d.add(wireframe);
+
+  // Indicateur Nord
+  addCompassLabel(scene3d, 0, -Lz/2 - 1.5, 'N', 0xff4444);
+  addCompassLabel(scene3d, 0,  Lz/2 + 1.5, 'S', 0x88ddff);
+  addCompassLabel(scene3d, Lx/2+1.5, 0, 'E', 0xffdd88);
+  addCompassLabel(scene3d, -Lx/2-1.5, 0, 'O', 0xaaffaa);
+
+  // Légende U-values
+  buildLegend3d(U_max);
+
+  // Raycaster pour survol
+  setupRaycaster3d();
+
+  // Lancer l'animation
+  animate3d();
+}
+
+function addCompassLabel(scene, x, z, text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#' + color.toString(16).padStart(6,'0');
+  ctx.font = 'bold 40px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 32, 48);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.set(x, 0.5, z);
+  sprite.scale.set(1.2, 1.2, 1);
+  scene.add(sprite);
+}
+
+function buildLegend3d(U_max) {
+  const wrap = document.getElementById('legend-items');
+  wrap.innerHTML = '';
+  const steps = [0, U_max*0.25, U_max*0.5, U_max*0.75, U_max];
+  const labels = ['Très bien', 'Bien', 'Moyen', 'Mauvais', 'Très mauvais'];
+  steps.forEach((u, i) => {
+    const c = uColor(u, U_max);
+    const hex = '#' + Math.round(c.r*255).toString(16).padStart(2,'0') +
+                      Math.round(c.g*255).toString(16).padStart(2,'0') +
+                      Math.round(c.b*255).toString(16).padStart(2,'0');
+    wrap.innerHTML += '<div style="display:flex;align-items:center;gap:8px">' +
+      '<div style="width:16px;height:8px;border-radius:2px;background:' + hex + '"></div>' +
+      '<span style="color:rgba(255,255,255,.7)">' + u.toFixed(2) + ' – ' + labels[i] + '</span></div>';
+  });
+}
+
+function setupRaycaster3d() {
+  const canvas = document.getElementById('canvas3d');
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  const tooltip = document.getElementById('tooltip3d');
+  const allMeshes = [...wallMeshes, ...windowMeshes];
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera3d);
+    const hits = raycaster.intersectObjects(allMeshes);
+    if (hits.length) {
+      const d = hits[0].object.userData;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top  = (e.clientY - rect.top  - 40) + 'px';
+      if (d.type === 'wall') {
+        tooltip.innerHTML = '<strong style="color:#4ade80">Mur ' + d.orient + '</strong><br>' +
+          'Matériau: ' + d.mat + '<br>' +
+          'Surface: ' + d.surf + ' m²<br>' +
+          'U = <strong style="color:#f59e0b">' + d.U + ' W/m²K</strong><br>' +
+          (d.iso > 0 ? 'Isolation: ' + (d.iso*100).toFixed(0) + ' cm<br>' : 'Sans isolation<br>');
+      } else {
+        tooltip.innerHTML = '<strong style="color:#88ccff">Baie ' + d.orient + '</strong><br>' +
+          'Vitrage: ' + d.vit + '<br>' +
+          'Surface: ' + d.surf + ' m²<br>' +
+          'Uw = <strong style="color:#f59e0b">' + d.U + ' W/m²K</strong>';
+      }
+      // Highlight
+      allMeshes.forEach(m => {
+        if (m.userData.originalColor) m.material.color.copy(m.userData.originalColor);
+      });
+      hits[0].object.material.color.multiplyScalar(1.4);
+    } else {
+      tooltip.style.display = 'none';
+      allMeshes.forEach(m => {
+        if (m.userData.originalColor) m.material.color.copy(m.userData.originalColor);
+      });
+    }
+  });
+
+  // Drag pour orbite
+  canvas.addEventListener('mousedown', e => { isDragging=true; prevMouse={x:e.clientX,y:e.clientY}; });
+  canvas.addEventListener('mouseup',   () => { isDragging=false; });
+  canvas.addEventListener('mouseleave',() => { isDragging=false; });
+  canvas.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    camTheta -= dx * 0.01;
+    camPhi = Math.max(0.1, Math.min(Math.PI/2 - 0.05, camPhi - dy * 0.01));
+    prevMouse = {x:e.clientX, y:e.clientY};
+    updateCamera3d();
+  });
+  canvas.addEventListener('wheel', e => {
+    camDist = Math.max(5, Math.min(40, camDist + e.deltaY * 0.02));
+    updateCamera3d();
+    e.preventDefault();
+  }, {passive:false});
+}
+
+function updateCamera3d() {
+  if (!camera3d) return;
+  camera3d.position.set(
+    camDist * Math.sin(camPhi) * Math.sin(camTheta),
+    camDist * Math.cos(camPhi),
+    camDist * Math.sin(camPhi) * Math.cos(camTheta)
+  );
+  camera3d.lookAt(0, dpe3dData?.logement?.hsp || 2.5, 0);
+}
+
+function setView3d(view) {
+  document.querySelectorAll('.btn3d').forEach(b => b.classList.remove('active'));
+  const btnMap = {perspective:'btn-persp',north:'btn-north',south:'btn-south',east:'btn-east',west:'btn-west',top:'btn-top'};
+  document.getElementById(btnMap[view]).classList.add('active');
+  switch(view) {
+    case 'perspective': camTheta=Math.PI/4;  camPhi=Math.PI/3; camDist=18; break;
+    case 'north':       camTheta=Math.PI;    camPhi=Math.PI/4; camDist=16; break;
+    case 'south':       camTheta=0;          camPhi=Math.PI/4; camDist=16; break;
+    case 'east':        camTheta=Math.PI/2;  camPhi=Math.PI/4; camDist=16; break;
+    case 'west':        camTheta=-Math.PI/2; camPhi=Math.PI/4; camDist=16; break;
+    case 'top':         camTheta=Math.PI/4;  camPhi=0.05;      camDist=20; break;
+  }
+  updateCamera3d();
+}
+
+function toggleRenovation(enabled) {
+  renoMode = enabled;
+  if (!dpe3dData || !dpe3dData.scenarios.length) return;
+  const sc = dpe3dData.scenarios[dpe3dData.scenarios.length - 1]; // meilleur scénario
+  const U_max = Math.max(...wallMeshes.map(m=>parseFloat(m.userData.U)||0));
+  wallMeshes.forEach(m => {
+    if (renoMode) {
+      // Simuler amélioration — isolation murs → U divisé par 3
+      const newU = parseFloat(m.userData.U) / 3;
+      m.userData.originalColor = uColor(newU, U_max);
+    } else {
+      const Us = dpe3dData.murs.filter(w=>w.versExt && w.orientation===m.userData.orient);
+      const U_avg = Us.length ? Us.reduce((a,b)=>a+(b.U||1.5),0)/Us.length : 1.5;
+      m.userData.originalColor = uColor(U_avg, U_max);
+    }
+    m.material.color.copy(m.userData.originalColor);
+  });
+}
+
+function toggleXray(enabled) {
+  xrayMode = enabled;
+  wallMeshes.forEach(m => {
+    m.material.transparent = enabled;
+    m.material.opacity = enabled ? 0.35 : 1.0;
+    m.material.depthWrite = !enabled;
+  });
+}
+
+function animate3d() {
+  animFrame3d = requestAnimationFrame(animate3d);
+  if (renderer3d && scene3d && camera3d) {
+    renderer3d.render(scene3d, camera3d);
+  }
+}
+
+function renderParoisStats(d) {
+  const el = document.getElementById('parois3d-stats');
+  const ORIENT_LABEL = {N:'Nord',E:'Est',S:'Sud',O:'Ouest'};
+  const ETIQ_U = u => u < 0.3?'A':u<0.6?'B':u<1.0?'C':u<1.5?'D':u<2.0?'E':'F/G';
+  
+  let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
+  ['N','E','S','O'].forEach(o => {
+    const mursO = d.murs.filter(m => m.versExt && m.orientation===o);
+    if (!mursO.length) return;
+    const surfTot = mursO.reduce((a,b)=>a+b.surface,0);
+    const U_avg  = mursO.reduce((a,b)=>a+(b.U||1.5),0)/mursO.length;
+    const baisO  = d.baies.filter(b=>b.orientation===o);
+    const surfB  = baisO.reduce((a,b)=>a+b.surface,0);
+    const uColor_hex = '#' + (() => {
+      const c = uColor(U_avg, 2.5);
+      return [c.r,c.g,c.b].map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+    })();
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<span style="font-size:14px;font-weight:700;color:var(--text)">Façade ' + ORIENT_LABEL[o] + '</span>';
+    html += '<span style="font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:4px;background:' + uColor_hex + '33;color:' + uColor_hex + '">U=' + U_avg.toFixed(2) + '</span></div>';
+    html += '<div style="font-size:11px;color:var(--muted);line-height:1.8">';
+    html += 'Surface mur: <strong style="color:var(--text)">' + surfTot.toFixed(1) + ' m²</strong><br>';
+    html += 'Baies: <strong style="color:var(--text)">' + (surfB?surfB.toFixed(1)+' m²':'aucune') + '</strong><br>';
+    html += 'Matériau: <strong style="color:var(--text)">' + (mursO[0]?.materiau||'?') + '</strong><br>';
+    html += 'Ratio vitrage: <strong style="color:var(--text)">' + (surfTot>0?(surfB/surfTot*100).toFixed(0)+'%':'—') + '</strong>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+window.load3dXml = load3dXml;
+window.setView3d = setView3d;
+window.toggleRenovation = toggleRenovation;
+window.toggleXray = toggleXray;
+
+/* INIT */
+buildChips();
+updateRawUrl();
+</script>
+</body>
+</html>
