@@ -29,9 +29,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 ::selection{background:#4ade8033}
 
 /* LAYOUT */
-.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
-.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;position:fixed;width:220px;height:100vh;overflow-y:auto}
-.main{margin-left:220px;padding:32px;max-width:960px;width:100%;overflow-x:hidden}
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh;width:100%}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;position:fixed;width:220px;height:100vh;overflow-y:auto;z-index:10}
+.main{margin-left:220px;padding:28px 32px;min-width:0;width:calc(100vw - 220px);box-sizing:border-box}
 
 /* SIDEBAR */
 .logo{padding:0 20px 28px;border-bottom:1px solid var(--border);margin-bottom:16px}
@@ -83,7 +83,7 @@ select option{background:var(--surface2)}
 .card-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
 
 /* METRICS GRID */
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
 .metric{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
 .metric .v{font-size:26px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px;font-family:var(--mono)}
 .metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
@@ -135,6 +135,27 @@ tr:hover td{background:var(--surface2)}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* GRILLES PC */
+.grid-blocks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+.grid-costs{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
+.block-grid{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.block-grid .k{color:var(--muted);font-size:11px;font-family:var(--mono);padding:6px 0;border-bottom:1px solid var(--border)}
+.block-grid .val{font-size:12px;font-weight:500;color:var(--text);padding:6px 4px;border-bottom:1px solid var(--border);word-break:break-word}
+@media(max-width:900px){
+  .grid-blocks{grid-template-columns:1fr 1fr}
+  .grid-kpis{grid-template-columns:repeat(3,1fr)}
+  .grid-costs{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:600px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:relative;width:100%;height:auto}
+  .main{margin-left:0;width:100%}
+  .grid-blocks{grid-template-columns:1fr}
+  .grid-kpis{grid-template-columns:repeat(2,1fr)}
+  .grid-costs{grid-template-columns:repeat(2,1fr)}
+}
 </style>
 </head>
 <body>
@@ -427,7 +448,7 @@ function renderDpeCard(d, total) {
     + '</div></div></div>'
 
     // ── KPIs principaux ──
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">'
+    + '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">'
     + metricBox(fmtN(d['conso_5_usages_par_m2_ef']) + ' kWh', 'Conso EF / m²/an', '#22d3ee')
     + metricBox(fmtN(d['conso_5_usages_par_m2_ep']) + ' kWh', 'Conso EP / m²/an', '#a78bfa')
     + metricBox(fmtN(d['emission_ges_5_usages_par_m2']) + ' kg', 'CO₂ / m²/an', '#f87171')
@@ -437,7 +458,7 @@ function renderDpeCard(d, total) {
     + '</div>'
 
     // ── GRILLE 3 colonnes ──
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">'
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">'
 
     // Bloc logement
     + block('🏠 Logement', '#1e3a5f', 
@@ -540,7 +561,7 @@ function renderDpeCard(d, total) {
     // ── Coûts détaillés ──
     + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
     + '<div style="background:#3b2a0a;padding:8px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)">💰 Détail des coûts annuels</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--border)">'
+    + '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)">'
     + ['chauffage|Chauffage|#f59e0b','ecs|Eau chaude|#22d3ee','eclairage|Éclairage|#a78bfa','auxiliaires|Auxiliaires|#6b7280','total_5_usages|Total|#4ade80'].map(s => {
         const [k, label, col] = s.split('|');
         const v = d['cout_' + k];
