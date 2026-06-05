@@ -236,26 +236,41 @@ tr:hover td{background:var(--surface2)}
 
 <script>
 const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
-// Proxy CORS pour GitHub Pages et toute origine externe
-// corsproxy.io ajoute le header Access-Control-Allow-Origin manquant
-const PROXY = 'https://corsproxy.io/?url=';
 
-function buildUrl(params) {
-  const qs = Object.entries(params)
+// ─── STRATÉGIE CORS ───────────────────────────────────────────────────────
+// L'API ADEME ne renvoie pas Access-Control-Allow-Origin pour GitHub Pages.
+// On passe par allorigins.win qui :
+//   1. Accepte l'URL cible en paramètre ?url=...
+//   2. La récupère côté serveur (pas de CORS côté serveur)
+//   3. Retourne { contents: "...", status: {...} }
+// On parse ensuite contents comme JSON.
+// Encodage : l'URL ADEME doit être encodée UNE SEULE FOIS dans le param url=
+// Les noms de champs accentués ADEME (N°_DPE etc.) sont encodés dans l'URL ADEME
+// avant que celle-ci soit elle-même encodée pour allorigins → pas de double-encodage
+// car allorigins décode le param url= avant de faire sa requête.
+// ─────────────────────────────────────────────────────────────────────────
+
+function ademeQs(params) {
+  // Construit la querystring ADEME : clés et valeurs encodées normalement
+  return Object.entries(params)
     .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
     .join('&');
-  return PROXY + encodeURIComponent(ADEME + '?' + qs);
+}
+
+function buildUrl(params) {
+  const ademeUrl = ADEME + '?' + ademeQs(params);
+  return 'https://api.allorigins.win/get?url=' + encodeURIComponent(ademeUrl);
 }
 
 function buildUrlRaw(rawParams) {
-  return PROXY + encodeURIComponent(ADEME + '?' + rawParams);
+  // Pour la requête libre : les params viennent de l'utilisateur déjà formatés
+  const ademeUrl = ADEME + '?' + rawParams;
+  return 'https://api.allorigins.win/get?url=' + encodeURIComponent(ademeUrl);
 }
 
 function displayUrl(params) {
-  const qs = Object.entries(params)
-    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
-    .join('&');
-  return ADEME + '?' + qs;
+  // URL lisible affichée dans l'interface (sans proxy)
+  return ADEME + '?' + ademeQs(params);
 }
 
 const RAW_EXAMPLES = [
@@ -304,13 +319,18 @@ async function apiFetch(url, btnId, statusId) {
   btn.textContent = '⏳ Chargement…';
   setStatus(statusId, 'info', '<span class="spin">↻</span> &nbsp;Requête en cours…');
   try {
-    const r = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + r.statusText);
-    const d = await r.json();
+    // allorigins retourne { contents: "<json string>", status: {...} }
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Proxy HTTP ' + r.status);
+    const wrapper = await r.json();
+    if (!wrapper.contents) throw new Error('Réponse proxy vide — API ADEME inaccessible');
+    const d = JSON.parse(wrapper.contents);
+    // allorigins peut relayer une erreur ADEME dans contents
+    if (d.statusCode >= 400) throw new Error('ADEME API ' + d.statusCode + ' — ' + (d.error || 'Bad Request'));
     clearStatus(statusId);
     return d;
   } catch(e) {
-    setStatus(statusId, 'err', '✖ ' + e.message + ' — Vérifiez votre connexion ou la validité des paramètres.');
+    setStatus(statusId, 'err', '✖ ' + e.message);
     return null;
   } finally {
     btn.disabled = false;
