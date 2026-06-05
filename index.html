@@ -235,7 +235,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe-v2-logements-existants/lines';
+const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
 
 // ─── CONFIGURATION PROXY ─────────────────────────────────────────────────
 // Remplacer par l'URL de ton Cloudflare Worker après déploiement
@@ -257,13 +257,12 @@ function ademeQs(params) {
 
 function buildUrl(params) {
   if (!PROXY_CONFIGURED) return null;
-  // Le Worker reçoit les paramètres directement — même interface que l'API ADEME
-  return PROXY_BASE + '?' + ademeQs(params);
+  return PROXY_BASE + '/?' + ademeQs(params);
 }
 
 function buildUrlRaw(rawParams) {
   if (!PROXY_CONFIGURED) return null;
-  return PROXY_BASE + '?' + rawParams;
+  return PROXY_BASE + '/?' + rawParams;
 }
 
 function displayUrl(params) {
