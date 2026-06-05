@@ -235,7 +235,7 @@ tr:hover td{background:var(--surface2)}
 </div>
 
 <script>
-const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
+const ADEME = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe-v2-logements-existants/lines';
 
 // ─── CONFIGURATION PROXY ─────────────────────────────────────────────────
 // Remplacer par l'URL de ton Cloudflare Worker après déploiement
@@ -348,7 +348,8 @@ async function apiFetch(url, btnId, statusId) {
 async function searchDpe() {
   const num = document.getElementById('inp-dpe').value.trim();
   if (!num) return;
-  const params = { q: num, q_fields: 'N°_DPE', size: '1' };
+  // Recherche fulltext sur le numéro DPE — pas de q_fields pour éviter les pb d'encodage
+  const params = { q: num, size: '1' };
   const url = buildUrl(params);
   document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
   const data = await apiFetch(url, 'btn-search', 'search');
@@ -433,8 +434,9 @@ async function loadStats() {
   const cp = document.getElementById('inp-cp').value.trim();
   const size = document.getElementById('inp-size').value;
   if (!cp) return;
-  const fields = 'N°_DPE,Etiquette_DPE,Etiquette_GES,Surface_habitable_logement,Type_bâtiment,Conso_5_usages_é_finale,Emission_GES_5_usages_m2,Type_énergie_principale_chauffage,Période_construction,Nom_commune_brut';
-  const params = { qs: 'Code_postal_ban:' + cp, select: fields, size: size };
+  // Champs sans accents dans les noms pour éviter l'erreur 400
+  const fields = 'Etiquette_DPE,Etiquette_GES,Surface_habitable_logement,Type_batiment,Conso_5_usages_ef,Emission_GES_5_usages_m2,Type_energie_principale_chauffage,Periode_construction,Nom_commune_brut';
+  const params = { q: cp, size: size };
   const url = buildUrl(params);
   document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
   const data = await apiFetch(url, 'btn-stats', 'stats');
