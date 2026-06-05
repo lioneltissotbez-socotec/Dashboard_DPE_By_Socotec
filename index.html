@@ -145,6 +145,30 @@ tr:hover td{background:var(--surface2)}
 .f-btn-sm:hover{border-color:var(--accent2);color:var(--accent2)}
 .f-btn-sm.active{border-color:var(--accent);color:var(--accent);background:rgba(74,222,128,.08)}
 
+/* PLAN RÉNO */
+.reno-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.reno-card-head{padding:12px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.reno-card-body{padding:16px 18px}
+.etiq-pill{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;font-size:16px;font-weight:700;font-family:var(--mono)}
+.etiq-arrow{color:var(--muted);font-size:14px;margin:0 4px}
+.lot-row{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.lot-row:last-child{border-bottom:none}
+.lot-icon{font-size:18px;width:28px;text-align:center;flex-shrink:0;margin-top:2px}
+.lot-body{flex:1;min-width:0}
+.lot-label{font-size:12px;font-weight:600;color:var(--accent2);font-family:var(--mono);margin-bottom:3px}
+.lot-desc{font-size:12px;color:var(--muted);line-height:1.5}
+.lot-perf{font-size:11px;color:var(--accent);font-family:var(--mono);margin-top:4px;padding:2px 8px;background:rgba(74,222,128,.08);border-radius:4px;display:inline-block}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.kpi-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.kpi-box .v{font-size:18px;font-weight:700;font-family:var(--mono);color:var(--text)}
+.kpi-box .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.dep-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:7px}
+.dep-label{font-size:11px;color:var(--muted);font-family:var(--mono);width:140px;flex-shrink:0}
+.dep-track{flex:1;height:7px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.dep-fill{height:100%;border-radius:4px}
+.dep-val{font-size:11px;font-family:var(--mono);color:var(--text);width:60px;text-align:right}
+.scenario-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -187,6 +211,10 @@ tr:hover td{background:var(--surface2)}
     </div>
     <div class="nav-item" onclick="show('addr')">
       <span class="ico">📍</span> Recherche par adresse
+    </div>
+    <div class="nav-section">Outils</div>
+    <div class="nav-item" onclick="show('reno')">
+      <span class="ico">🔧</span> Plan de rénovation
     </div>
     <div class="nav-section">Analyse</div>
     <div class="nav-item" onclick="show('stats')">
@@ -376,6 +404,24 @@ tr:hover td{background:var(--surface2)}
       <div class="url-bar" id="url-addr">—</div>
       <div class="status" id="st-addr"></div>
       <div id="result-addr"></div>
+    </div>
+
+    <!-- PANEL : PLAN DE RÉNOVATION -->
+    <div class="panel" id="panel-reno">
+      <h1>Plan de rénovation</h1>
+      <p class="subtitle">Importez un fichier XML ADEME pour afficher les scénarios de travaux complets</p>
+
+      <div id="reno-drop" onclick="document.getElementById('reno-xml-input').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:20px;transition:all .2s">
+        <input type="file" id="reno-xml-input" accept=".xml" style="display:none" onchange="loadRenoXml(this)">
+        <div style="font-size:32px;margin-bottom:12px">📄</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME ici</div>
+        <div style="font-size:12px;color:var(--muted)">Fichier généré par LICIEL, Argos Ithaque, Climawin ou tout logiciel certifié 3CL-DPE 2021</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-reno"></div>
+      <div id="result-reno"></div>
     </div>
 
     <!-- PANEL : STATS -->
@@ -1252,6 +1298,355 @@ window.toggleFilter       = toggleFilter;
 window.resetFilters       = resetFilters;
 window.updateFilterBadge  = updateFilterBadge;
 window.searchAddr         = searchAddr;
+
+/* ─────────────────────────────────────────
+   PLAN DE RÉNOVATION — Import XML
+───────────────────────────────────────── */
+
+// Drag & drop sur la zone reno
+document.addEventListener('DOMContentLoaded', function() {
+  const drop = document.getElementById('reno-drop');
+  if (drop) {
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--accent)'; });
+    drop.addEventListener('dragleave', () => { drop.style.borderColor = 'rgba(255,255,255,.15)'; });
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.style.borderColor = 'rgba(255,255,255,.15)';
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.xml')) {
+        const dt = new DataTransfer(); dt.items.add(file);
+        document.getElementById('reno-xml-input').files = dt.files;
+        loadRenoXml(document.getElementById('reno-xml-input'));
+      }
+    });
+  }
+});
+
+function loadRenoXml(input) {
+  const file = input.files[0];
+  if (!file) return;
+  setStatus('reno', 'info', '<span class="spin">↻</span> &nbsp;Lecture du fichier XML...');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(e.target.result, 'application/xml');
+      const parseErr = doc.querySelector('parsererror');
+      if (parseErr) throw new Error('XML invalide : ' + parseErr.textContent.slice(0,80));
+      const data = parseXmlDpe(doc);
+      clearStatus('reno');
+      document.getElementById('result-reno').innerHTML = renderRenoPlan(data);
+      // Mettre à jour le titre de la drop zone
+      document.getElementById('reno-drop').innerHTML =
+        '<div style="font-size:20px">✅</div>' +
+        '<div style="font-size:13px;font-weight:600;color:var(--accent);margin-top:8px">' + file.name + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">N° ' + (data.meta.numero_dpe || '?') + ' · ' + (data.meta.adresse || '') + '</div>';
+    } catch(err) {
+      setStatus('reno', 'err', '✖ ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function xget(doc, tag, idx) {
+  const els = doc.getElementsByTagName(tag);
+  idx = idx || 0;
+  return (els[idx] && els[idx].textContent) ? els[idx].textContent.trim() : null;
+}
+
+const ORIENT = {'1':'Nord','2':'Est','3':'Sud','4':'Ouest','5':'NE','6':'NO','7':'SE','8':'SO','9':'Horizontal'};
+const ADJ    = {'1':'Extérieur','2':'LNC','3':'Terre-plein','4':'Sous-sol NC','5':'Vide sanitaire','6':'LCC','7':'Circulation','8':'Communs','10':'Extérieur','11':'Comble perdu','12':'Comble aménagé'};
+const VITRAGE= {'1':'Simple','2':'Double','3':'Triple','4':'Double fenêtre'};
+const MATMUR = {'1':'Brique','2':'Béton banché','3':'Pierre de taille','4':'Parpaing','5':'Bois','6':'Autre','7':'Pierre calcaire','8':'Pisé','9':'Béton cellulaire'};
+const LOTS   = {'1':['🧱','Isolation murs'],'2':['🪨','Isolation plancher bas'],'3':['🏠','Isolation toiture'],'4':['🪟','Menuiseries'],'5':['🔥','Chauffage'],'6':['🚿','ECS'],'7':['💡','Éclairage'],'8':['💨','Ventilation'],'9':['🔒','Étanchéité'],'10':['☀️','ENR']};
+
+function calcEtiq(conso_m2) {
+  if (conso_m2 <= 70) return 'A';
+  if (conso_m2 <= 110) return 'B';
+  if (conso_m2 <= 180) return 'C';
+  if (conso_m2 <= 250) return 'D';
+  if (conso_m2 <= 330) return 'E';
+  if (conso_m2 <= 420) return 'F';
+  return 'G';
+}
+
+const ETIQ_COLORS = {A:{bg:'#1a5c3a',tx:'#4ade80'},B:{bg:'#2d5e16',tx:'#86efac'},C:{bg:'#4d6b0f',tx:'#bef264'},D:{bg:'#7c5a08',tx:'#fde68a'},E:{bg:'#7c3a08',tx:'#fdba74'},F:{bg:'#7c1212',tx:'#fca5a5'},G:{bg:'#500d0d',tx:'#ef4444'}};
+
+function etiqPill(v, size) {
+  const c = ETIQ_COLORS[v] || {bg:'#333',tx:'#fff'};
+  const sz = size === 'lg' ? '38px;font-size:20px' : '26px;font-size:13px';
+  return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + sz + ';height:' + (size==='lg'?38:26) + 'px;border-radius:6px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+}
+
+function parseXmlDpe(doc) {
+  const surf = parseFloat(xget(doc,'surface_habitable_logement') || xget(doc,'surface_habitable') || 0);
+  const niv  = parseInt(xget(doc,'nombre_niveau_logement') || 1);
+  const hsp  = parseFloat(xget(doc,'hsp') || 2.5);
+
+  const murs = [];
+  for (const mur of doc.getElementsByTagName('mur')) {
+    const de = mur.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g  = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const um = mur.getElementsByTagName('umur')[0];
+    const s  = parseFloat(g('surface_paroi_opaque') || 0);
+    if (!s) continue;
+    murs.push({
+      surface: s,
+      orientation: ORIENT[g('enum_orientation_id')] || '?',
+      adjacence: ADJ[g('enum_type_adjacence_id')] || '?',
+      materiau: MATMUR[g('enum_materiaux_structure_mur_id')] || '?',
+      U: um ? parseFloat(um.textContent) : null,
+      versExt: g('enum_type_adjacence_id') === '1',
+    });
+  }
+
+  const baies = [];
+  for (const bv of doc.getElementsByTagName('baie_vitree')) {
+    const de = bv.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const uw = bv.getElementsByTagName('uw')[0];
+    const s  = parseFloat(g('surface_totale_baie') || 0);
+    if (!s) continue;
+    baies.push({
+      surface: s,
+      nb: parseInt(g('nb_baie') || 1),
+      orientation: ORIENT[g('enum_orientation_id')] || '?',
+      vitrage: VITRAGE[g('enum_type_vitrage_id')] || '?',
+      Uw: uw ? parseFloat(uw.textContent) : null,
+    });
+  }
+
+  const pts = [];
+  const TYPE_PT = {'1':'PB/mur','2':'PI/mur','3':'PH/mur','4':'Refend/mur','5':'Menuiserie/mur','6':'Angle sortant','7':'Angle rentrant'};
+  for (const pt of doc.getElementsByTagName('pont_thermique')) {
+    const de = pt.getElementsByTagName('donnee_entree')[0];
+    if (!de) continue;
+    const g = t => { const el = de.getElementsByTagName(t)[0]; return el ? el.textContent.trim() : null; };
+    const k = pt.getElementsByTagName('k')[0];
+    pts.push({
+      type: TYPE_PT[g('enum_type_liaison_id')] || '?',
+      longueur: parseFloat(g('l') || 0),
+      k: k ? parseFloat(k.textContent) : 0,
+    });
+  }
+
+  const dep = doc.getElementsByTagName('deperdition')[0];
+  const deperditions = dep ? {
+    murs: parseFloat(dep.getElementsByTagName('deperdition_mur')[0]?.textContent || 0),
+    plancher_bas: parseFloat(dep.getElementsByTagName('deperdition_plancher_bas')[0]?.textContent || 0),
+    plancher_haut: parseFloat(dep.getElementsByTagName('deperdition_plancher_haut')[0]?.textContent || 0),
+    baies: parseFloat(dep.getElementsByTagName('deperdition_baie_vitree')[0]?.textContent || 0),
+    portes: parseFloat(dep.getElementsByTagName('deperdition_porte')[0]?.textContent || 0),
+    pts: parseFloat(dep.getElementsByTagName('deperdition_pont_thermique')[0]?.textContent || 0),
+    air: parseFloat(dep.getElementsByTagName('deperdition_renouvellement_air')[0]?.textContent || 0),
+    total: parseFloat(dep.getElementsByTagName('deperdition_enveloppe')[0]?.textContent || 0),
+  } : {};
+
+  const scenarios = [];
+  for (const pack of doc.getElementsByTagName('pack_travaux')) {
+    const num     = pack.getElementsByTagName('enum_num_pack_travaux_id')[0];
+    const cMin    = pack.getElementsByTagName('cout_pack_travaux_min')[0];
+    const cMax    = pack.getElementsByTagName('cout_pack_travaux_max')[0];
+    const consoAp = pack.getElementsByTagName('conso_5_usages_apres_travaux')[0];
+    const gesAp   = pack.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
+    const conso_a = consoAp ? parseFloat(consoAp.textContent) : 0;
+    const m2_ap   = surf > 0 ? Math.round(conso_a / surf) : 0;
+    const cout_mn = cMin ? parseFloat(cMin.textContent) : 0;
+    const cout_mx = cMax ? parseFloat(cMax.textContent) : 0;
+    const etapes  = [];
+    const tc = pack.getElementsByTagName('travaux_collection')[0];
+    if (tc) {
+      for (const trav of tc.getElementsByTagName('travaux')) {
+        const lot  = trav.getElementsByTagName('enum_lot_travaux_id')[0];
+        const desc = trav.getElementsByTagName('description_travaux')[0];
+        const perf = trav.getElementsByTagName('performance_recommande')[0];
+        const cet  = trav.getElementsByTagName('conso_5_usages_apres_travaux')[0];
+        const get2 = trav.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
+        const lotId = lot ? lot.textContent.trim() : '?';
+        const c_et = cet ? parseFloat(cet.textContent) : null;
+        etapes.push({
+          lot: lotId,
+          info: LOTS[lotId] || ['🔧', lotId],
+          desc: desc ? desc.textContent.trim() : '',
+          perf: perf ? perf.textContent.trim() : '',
+          conso_ap: c_et,
+          m2_ap: (c_et && surf > 0) ? Math.round(c_et / surf) : null,
+          etiq_ap: (c_et && surf > 0) ? calcEtiq(c_et / surf) : null,
+          ges_ap: get2 ? parseFloat(get2.textContent) : null,
+        });
+      }
+    }
+    scenarios.push({
+      id: num ? num.textContent.trim() : '?',
+      etiq_av: xget(doc, 'classe_bilan_dpe'),
+      etiq_ap: calcEtiq(m2_ap),
+      conso_av_m2: parseFloat(xget(doc,'conso_5_usages_m2') || 0),
+      conso_ap_kwh: conso_a,
+      conso_ap_m2: m2_ap,
+      ges_av: parseFloat(xget(doc,'emission_ges_5_usages_m2') || 0),
+      ges_ap: gesAp ? parseFloat(gesAp.textContent) : 0,
+      cout_min: cout_mn,
+      cout_max: cout_mx,
+      etapes,
+    });
+  }
+
+  return {
+    meta: {
+      numero_dpe: xget(doc,'numero_dpe'),
+      adresse: xget(doc,'adresse_brut'),
+      date_visite: xget(doc,'date_visite_diagnostiqueur'),
+      date_dpe: xget(doc,'date_etablissement_dpe'),
+      etiq_dpe: xget(doc,'classe_bilan_dpe'),
+      etiq_ges: xget(doc,'classe_emission_ges'),
+      logiciel: xget(doc,'version_logiciel'),
+    },
+    logement: { surface: surf, niveaux: niv, hsp },
+    performance: {
+      conso_ef_m2: parseFloat(xget(doc,'conso_5_usages_m2') || 0),
+      conso_ep_m2: parseFloat(xget(doc,'ep_conso_5_usages_m2') || 0),
+      ges_m2: parseFloat(xget(doc,'emission_ges_5_usages_m2') || 0),
+      cout_total: parseFloat(xget(doc,'cout_5_usages') || 0),
+      cout_ch: parseFloat(xget(doc,'cout_ch') || 0),
+      cout_ecs: parseFloat(xget(doc,'cout_ecs') || 0),
+      cout_eclairage: parseFloat(xget(doc,'cout_eclairage') || 0),
+    },
+    murs, baies, ponts: pts, deperditions, scenarios,
+  };
+}
+
+function renderRenoPlan(d) {
+  const m = d.meta;
+  const l = d.logement;
+  const p = d.performance;
+  const dep = d.deperditions;
+  const depTotal = dep.total || 1;
+
+  const fmtK = v => v >= 1000 ? (v/1000).toFixed(1) + 'k€' : Math.round(v) + ' €';
+  const fmtN = (v, u) => v ? Math.round(v).toLocaleString('fr-FR') + (u||'') : '—';
+
+  // Entête
+  let html = '<div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px">';
+  html += '<div style="display:flex;gap:8px">' + etiqPill(m.etiq_dpe,'lg') + '<span style="color:var(--muted);font-size:18px;align-self:center">/</span>' + etiqPill(m.etiq_ges,'lg') + '</div>';
+  html += '<div><div style="font-size:15px;font-weight:700">' + (m.adresse||'') + '</div>';
+  html += '<div style="font-size:12px;color:var(--muted);font-family:var(--mono)">' + (m.numero_dpe||'') + ' · ' + l.surface + ' m² · ' + l.niveaux + ' niveau(x) · HSP ' + l.hsp + ' m</div>';
+  html += '<div style="font-size:11px;color:var(--muted);margin-top:4px">Visité le ' + (m.date_visite||'?') + ' · ' + (m.logiciel||'') + '</div></div></div>';
+
+  // KPIs
+  html += '<div class="kpi-row">';
+  html += '<div class="kpi-box"><div class="v" style="color:#22d3ee">' + fmtN(p.conso_ef_m2,' kWh/m²') + '</div><div class="l">Conso EF/m²/an</div></div>';
+  html += '<div class="kpi-box"><div class="v" style="color:#f87171">' + fmtN(p.ges_m2,' kg CO₂') + '</div><div class="l">GES/m²/an</div></div>';
+  html += '<div class="kpi-box"><div class="v" style="color:#f59e0b">' + fmtN(p.cout_total,' €') + '</div><div class="l">Coût total/an</div></div>';
+  html += '<div class="kpi-box"><div class="v">' + fmtN(p.cout_ch,' €') + '</div><div class="l">dont chauffage</div></div>';
+  html += '</div>';
+
+  // Déperditions
+  if (dep.total) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">📉</span><span style="font-size:13px;font-weight:600;color:var(--text)">Déperditions thermiques</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + fmtN(dep.total,' W/K total') + '</span></div><div class="reno-card-body">';
+    const depItems = [
+      ['Murs', dep.murs,'#ef4444'],
+      ['Renouvellement air', dep.air,'#f97316'],
+      ['Plancher haut', dep.plancher_haut,'#eab308'],
+      ['Baies vitrées', dep.baies,'#22d3ee'],
+      ['Portes', dep.portes,'#a78bfa'],
+      ['Ponts thermiques', dep.pts,'#6b7280'],
+      ['Plancher bas', dep.plancher_bas,'#6b7280'],
+    ].filter(x => x[1] > 0).sort((a,b) => b[1]-a[1]);
+    depItems.forEach(([label,val,color]) => {
+      const pct = Math.round((val/depTotal)*100);
+      html += '<div class="dep-bar-row"><span class="dep-label">' + label + '</span>';
+      html += '<div class="dep-track"><div class="dep-fill" style="width:' + pct + '%;background:' + color + ';opacity:.7"></div></div>';
+      html += '<span class="dep-val">' + pct + '% <span style="color:var(--muted)">' + Math.round(val) + '</span></span></div>';
+    });
+    html += '</div></div>';
+  }
+
+  // Parois
+  const mursExt = d.murs.filter(m2 => m2.versExt);
+  if (mursExt.length) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">🧱</span><span style="font-size:13px;font-weight:600">Murs donnant sur extérieur</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + mursExt.length + ' paroi(s)</span></div><div class="reno-card-body">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px">';
+    mursExt.forEach(m2 => {
+      const uColor = !m2.U ? '#6b7280' : m2.U < 0.4 ? '#4ade80' : m2.U < 0.8 ? '#86efac' : m2.U < 1.5 ? '#fde68a' : '#fca5a5';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+      html += '<span style="font-size:11px;font-weight:600;color:var(--text)">' + m2.orientation + '</span>';
+      html += '<span style="font-size:11px;font-family:var(--mono);color:' + uColor + '">' + (m2.U ? 'U=' + m2.U.toFixed(2) : '—') + '</span></div>';
+      html += '<div style="font-size:10px;color:var(--muted)">' + m2.materiau + ' · ' + m2.surface + ' m²</div></div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  // Baies
+  if (d.baies.length) {
+    html += '<div class="reno-card"><div class="reno-card-head"><span style="font-size:14px">🪟</span><span style="font-size:13px;font-weight:600">Baies vitrées</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:auto">' + d.baies.reduce((a,b)=>a+b.nb,0) + ' baie(s) · ' + d.baies.reduce((a,b)=>a+b.surface,0).toFixed(1) + ' m²</span></div><div class="reno-card-body">';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">';
+    d.baies.forEach(bv => {
+      const uColor = !bv.Uw ? '#6b7280' : bv.Uw < 1 ? '#4ade80' : bv.Uw < 1.5 ? '#86efac' : bv.Uw < 2.5 ? '#fde68a' : '#fca5a5';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">';
+      html += '<span style="font-size:11px;font-weight:600;color:var(--text)">' + bv.orientation + ' · ×' + bv.nb + '</span>';
+      html += '<span style="font-size:11px;font-family:var(--mono);color:' + uColor + '">' + (bv.Uw ? 'Uw=' + bv.Uw.toFixed(1) : '—') + '</span></div>';
+      html += '<div style="font-size:10px;color:var(--muted)">' + bv.vitrage + ' · ' + bv.surface + ' m²</div></div>';
+    });
+    html += '</div></div></div>';
+  }
+
+  // Scénarios de rénovation
+  if (d.scenarios.length) {
+    html += '<div style="font-size:15px;font-weight:700;margin:20px 0 12px">🔧 Scénarios de rénovation</div>';
+    d.scenarios.forEach((sc, i) => {
+      const gain = sc.cout_min > 500 ? Math.round(p.cout_total * (1 - sc.conso_ap_kwh / (p.conso_ef_m2 * l.surface))) : null;
+      html += '<div class="reno-card">';
+      html += '<div class="reno-card-head">';
+      html += '<div class="scenario-num" style="background:rgba(74,222,128,.15);color:var(--accent)">' + (i+1) + '</div>';
+      html += '<div style="flex:1"><div style="font-size:13px;font-weight:600">Scénario ' + (i+1) + ' — ' + (sc.etapes.length === 1 ? 'En une étape' : sc.etapes.length + ' étapes') + '</div>';
+      html += '<div style="font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px">' + sc.etapes.map(e => e.info[0]+' '+e.info[1]).join(' · ') + '</div></div>';
+      html += '<div style="display:flex;align-items:center;gap:6px">' + etiqPill(sc.etiq_av) + '<span style="color:var(--muted);font-size:14px">→</span>' + etiqPill(sc.etiq_ap) + '</div></div>';
+      html += '<div class="reno-card-body">';
+
+      // Métriques scénario
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f59e0b">' + (sc.cout_min > 500 ? fmtK(sc.cout_min)+' → '+fmtK(sc.cout_max) : 'N/R') + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Coût estimé</div></div>';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#22d3ee">' + fmtN(sc.conso_ap_m2,' kWh/m²') + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Conso après</div></div>';
+      html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#4ade80">' + (gain ? '-'+fmtN(gain,' €/an') : '—') + '</div>';
+      html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Gain annuel estimé</div></div>';
+      html += '</div>';
+
+      // Étapes
+      html += '<div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Travaux préconisés</div>';
+      sc.etapes.forEach(etape => {
+        html += '<div class="lot-row">';
+        html += '<div class="lot-icon">' + etape.info[0] + '</div>';
+        html += '<div class="lot-body">';
+        html += '<div class="lot-label">' + etape.info[1] + '</div>';
+        html += '<div class="lot-desc">' + (etape.desc || '').split('\n').join('<br>') + '</div>';
+        if (etape.perf) html += '<div class="lot-perf">' + etape.perf + '</div>';
+        if (etape.m2_ap !== null) {
+          html += '<div style="margin-top:6px;font-size:11px;color:var(--muted);font-family:var(--mono)">';
+          html += 'Après cette étape : ' + etape.m2_ap + ' kWh/m² ' + etiqPill(etape.etiq_ap);
+          if (etape.ges_ap) html += ' · ' + Math.round(etape.ges_ap/l.surface) + ' kg CO₂/m²';
+          html += '</div>';
+        }
+        html += '</div></div>';
+      });
+      html += '</div></div>';
+    });
+  } else {
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-size:13px;text-align:center">Aucun scénario de rénovation trouvé dans ce fichier XML.</div>';
+  }
+  return html;
+}
+
+window.loadRenoXml = loadRenoXml;
 
 /* INIT */
 buildChips();
