@@ -169,6 +169,8 @@ tr:hover td{background:var(--surface2)}
 .dep-val{font-size:11px;font-family:var(--mono);color:var(--text);width:60px;text-align:right}
 .scenario-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
 
+.btn3d{font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);color:var(--muted);background:none;cursor:pointer;transition:all .12s}
+.btn3d:hover,.btn3d.active{background:var(--accent);color:#0e0f11;border-color:var(--accent)}
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -215,6 +217,9 @@ tr:hover td{background:var(--surface2)}
     <div class="nav-section">Outils</div>
     <div class="nav-item" onclick="show('reno')">
       <span class="ico">🔧</span> Plan de rénovation
+    </div>
+    <div class="nav-item" onclick="show('view3d')">
+      <span class="ico">🏠</span> Vue 3D thermique
     </div>
     <div class="nav-section">Analyse</div>
     <div class="nav-item" onclick="show('stats')">
@@ -422,6 +427,62 @@ tr:hover td{background:var(--surface2)}
 
       <div class="status" id="st-reno"></div>
       <div id="result-reno"></div>
+    </div>
+
+    <!-- PANEL : VUE 3D -->
+    <div class="panel" id="panel-view3d">
+      <h1>Vue 3D thermique</h1>
+      <p class="subtitle">Représentation du logement avec carte thermique des parois — importez un XML ADEME</p>
+
+      <div id="view3d-drop" onclick="document.getElementById('view3d-xml').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:16px;transition:all .2s" id="drop3d">
+        <input type="file" id="view3d-xml" accept=".xml" style="display:none" onchange="load3dXml(this)">
+        <div style="font-size:32px;margin-bottom:10px">📦</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME</div>
+        <div style="font-size:12px;color:var(--muted)">Génère une maquette 3D orientée avec carte thermique des U-values</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-3d"></div>
+
+      <!-- Contrôles -->
+      <div id="controls3d" style="display:none;margin-bottom:12px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Vue :</div>
+          <button onclick="setView3d('perspective')" class="btn3d active" id="btn-persp">Perspective</button>
+          <button onclick="setView3d('north')"       class="btn3d" id="btn-north">Nord</button>
+          <button onclick="setView3d('south')"       class="btn3d" id="btn-south">Sud</button>
+          <button onclick="setView3d('east')"        class="btn3d" id="btn-east">Est</button>
+          <button onclick="setView3d('west')"        class="btn3d" id="btn-west">Ouest</button>
+          <button onclick="setView3d('top')"         class="btn3d" id="btn-top">Dessus</button>
+          <div style="flex:1"></div>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-reno" onchange="toggleRenovation(this.checked)"> Voir après travaux
+          </label>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-xray" onchange="toggleXray(this.checked)"> Mode X-ray
+          </label>
+        </div>
+      </div>
+
+      <!-- Canvas 3D -->
+      <div id="canvas3d-wrap" style="display:none;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;background:#0a0a0f">
+        <canvas id="canvas3d" style="display:block;width:100%;height:500px"></canvas>
+        <!-- Légende U-values -->
+        <div id="legend3d" style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:10px">
+          <div style="color:rgba(255,255,255,.6);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">U-value (W/m²K)</div>
+          <div style="display:flex;flex-direction:column;gap:3px" id="legend-items"></div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:9px">Cliquez sur une paroi pour l'inspecter</div>
+        </div>
+        <!-- Info paroi au survol -->
+        <div id="tooltip3d" style="display:none;position:absolute;background:rgba(0,0,0,.85);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;pointer-events:none;max-width:220px"></div>
+        <!-- Boussole -->
+        <div style="position:absolute;bottom:12px;left:12px;font-size:20px;opacity:.6">🧭</div>
+        <div id="compass-n" style="position:absolute;bottom:42px;left:22px;font-size:10px;color:rgba(255,255,255,.5);font-family:var(--mono)">N</div>
+      </div>
+
+      <!-- Stats parois -->
+      <div id="parois3d-stats" style="display:none;margin-top:16px"></div>
     </div>
 
     <!-- PANEL : STATS -->
@@ -1654,6 +1715,485 @@ function renderRenoPlan(d) {
 }
 
 window.loadRenoXml = loadRenoXml;
+
+/* ─────────────────────────────────────────
+   VISUALISATION 3D THERMIQUE
+───────────────────────────────────────── */
+
+let renderer3d = null, scene3d = null, camera3d = null;
+let animFrame3d = null, dpe3dData = null;
+let isDragging = false, prevMouse = {x:0,y:0};
+let camTheta = Math.PI/4, camPhi = Math.PI/3, camDist = 18;
+let wallMeshes = [], windowMeshes = [];
+let renoMode = false, xrayMode = false;
+
+// Colormap U-value : vert (bon) → rouge (mauvais)
+function uColor(U, max_U) {
+  if (U === null || U === undefined) return new THREE.Color(0x444455);
+  const t = Math.min(U / (max_U || 2.5), 1);
+  // Gradient : #1a9e56 → #f59e0b → #ef4444
+  if (t < 0.5) {
+    const s = t * 2;
+    return new THREE.Color(
+      0x1a/255 + (0xf5/255 - 0x1a/255)*s,
+      0x9e/255 + (0x9e/255 - 0x9e/255)*s,
+      0x56/255 + (0x0b/255 - 0x56/255)*s
+    );
+  } else {
+    const s = (t-0.5)*2;
+    return new THREE.Color(
+      0xf5/255 + (0xef/255 - 0xf5/255)*s,
+      0x9e/255 + (0x44/255 - 0x9e/255)*s,
+      0x0b/255 + (0x44/255 - 0x0b/255)*s
+    );
+  }
+}
+
+// Orientation → vecteur normal + angle
+const ORIENT_VEC = {
+  'N': { nx:0, nz:-1, angle: 0 },
+  'S': { nx:0, nz:1,  angle: Math.PI },
+  'E': { nx:1, nz:0,  angle: Math.PI/2 },
+  'O': { nx:-1,nz:0,  angle: -Math.PI/2 },
+};
+
+function load3dXml(input) {
+  const file = input.files[0];
+  if (!file) return;
+  setStatus('3d', 'info', '<span class="spin">↻</span> &nbsp;Lecture XML et construction 3D...');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(e.target.result, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('XML invalide');
+      dpe3dData = parseXmlDpe(doc); // réutilise parseXmlDpe du plan réno
+      build3dScene(dpe3dData);
+      clearStatus('3d');
+      document.getElementById('drop3d').innerHTML =
+        '<div style="font-size:16px;color:var(--accent)">✅ ' + file.name + '</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + (dpe3dData.meta.adresse||'') + ' · ' + (dpe3dData.meta.numero_dpe||'') + '</div>';
+      document.getElementById('controls3d').style.display = 'flex';
+      document.getElementById('canvas3d-wrap').style.display = 'block';
+      document.getElementById('parois3d-stats').style.display = 'block';
+      renderParoisStats(dpe3dData);
+    } catch(err) {
+      setStatus('3d', 'err', '✖ ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function build3dScene(d) {
+  const wrap = document.getElementById('canvas3d-wrap');
+  const canvas = document.getElementById('canvas3d');
+  const W = wrap.clientWidth || 800;
+  const H = 500;
+  canvas.width = W; canvas.height = H;
+
+  // Nettoyer la scène précédente
+  if (renderer3d) { renderer3d.dispose(); }
+  if (animFrame3d) cancelAnimationFrame(animFrame3d);
+  wallMeshes = []; windowMeshes = [];
+
+  scene3d = new THREE.Scene();
+  scene3d.background = new THREE.Color(0x0a0a0f);
+  scene3d.fog = new THREE.Fog(0x0a0a0f, 30, 60);
+
+  renderer3d = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer3d.setSize(W, H);
+  renderer3d.shadowMap.enabled = true;
+  renderer3d.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  camera3d = new THREE.PerspectiveCamera(45, W/H, 0.1, 200);
+  updateCamera3d();
+
+  // Lumières
+  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+  scene3d.add(ambient);
+  const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
+  sun.position.set(10, 20, 10);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 2048;
+  sun.shadow.mapSize.height = 2048;
+  scene3d.add(sun);
+  const fill = new THREE.DirectionalLight(0x8888ff, 0.3);
+  fill.position.set(-10, 5, -10);
+  scene3d.add(fill);
+
+  // Calculer dimensions depuis les murs extérieurs
+  const l = d.logement;
+  const surf_floor = l.surface / l.niveaux;
+  const H_tot = l.niveaux * l.hsp;
+
+  const surf_by_o = {};
+  d.murs.filter(m => m.versExt).forEach(m => {
+    surf_by_o[m.orientation] = (surf_by_o[m.orientation]||0) + m.surface;
+  });
+
+  const fNS = o => surf_by_o[o] ? surf_by_o[o]/H_tot : Math.sqrt(surf_floor);
+  const Lx = (fNS('N') + fNS('S')) / 2;
+  const Lz = (fNS('E') + fNS('O')) / 2;
+
+  // Centre du bâtiment à l'origine
+  const cx = 0, cz = 0;
+
+  // Trouver U-max pour normalisation couleurs
+  const Us = d.murs.filter(m=>m.versExt && m.U).map(m=>m.U);
+  const U_max = Us.length ? Math.max(...Us) : 2.5;
+
+  // Matériau sol
+  const groundGeo = new THREE.PlaneGeometry(40, 40);
+  const groundMat = new THREE.MeshLambertMaterial({ color: 0x1a1a2e });
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.01;
+  ground.receiveShadow = true;
+  scene3d.add(ground);
+
+  // Grille
+  const grid = new THREE.GridHelper(40, 40, 0x222233, 0x222233);
+  grid.position.y = 0;
+  scene3d.add(grid);
+
+  // ── CONSTRUIRE LES 4 FAÇADES ──
+  const facades = [
+    { o:'N', x:0,      z:-Lz/2, rx:cx, rz:cz, W:Lx, offX:0, offZ:-1 },
+    { o:'S', x:0,      z:Lz/2,  rx:cx, rz:cz, W:Lx, offX:0, offZ:1  },
+    { o:'E', x:Lx/2,  z:0,     rx:cx, rz:cz, W:Lz, offX:1,  offZ:0  },
+    { o:'O', x:-Lx/2, z:0,     rx:cx, rz:cz, W:Lz, offX:-1, offZ:0  },
+  ];
+
+  facades.forEach(f => {
+    const wallData = d.murs.filter(m => m.versExt && m.orientation === f.o);
+    const U_avg = wallData.length ? wallData.reduce((a,b)=>a+(b.U||1.5),0)/wallData.length : 1.5;
+    const color = uColor(U_avg, U_max);
+    const mat = new THREE.MeshPhongMaterial({
+      color, transparent: false, opacity: 1.0,
+      shininess: 20,
+    });
+    const geo = new THREE.BoxGeometry(f.W, H_tot, 0.25);
+    const mesh = new THREE.Mesh(geo, mat);
+
+    // Positionner la façade
+    if (f.o === 'N') { mesh.position.set(0, H_tot/2, -Lz/2); }
+    if (f.o === 'S') { mesh.position.set(0, H_tot/2,  Lz/2); }
+    if (f.o === 'E') { mesh.position.set(Lx/2, H_tot/2, 0); mesh.rotation.y = Math.PI/2; }
+    if (f.o === 'O') { mesh.position.set(-Lx/2, H_tot/2, 0); mesh.rotation.y = Math.PI/2; }
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData = {
+      type: 'wall', orient: f.o,
+      U: U_avg.toFixed(2),
+      mat: wallData[0]?.materiau || '?',
+      surf: wallData.reduce((a,b)=>a+b.surface,0).toFixed(1),
+      iso: wallData[0]?.epaisseur_iso_cm || 0,
+      originalColor: color.clone(),
+    };
+    wallMeshes.push(mesh);
+    scene3d.add(mesh);
+
+    // ── FENÊTRES ──
+    const baisOrient = d.baies.filter(b => b.orientation === f.o);
+    const totalBaie = baisOrient.reduce((a,b)=>a+b.surface,0);
+    if (totalBaie > 0) {
+      // Placer les fenêtres sur la façade
+      const winColor = new THREE.Color(0x88ccff);
+      const winMat = new THREE.MeshPhongMaterial({
+        color: winColor, transparent: true, opacity: 0.5,
+        shininess: 80, emissive: new THREE.Color(0x112233),
+      });
+      // Cadre de la fenêtre
+      const frameMat = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 30 });
+
+      // Distribuer les fenêtres sur la largeur de façade
+      const nbBaies = baisOrient.reduce((a,b)=>a+b.nb,0);
+      const win_w  = Math.min(totalBaie / (H_tot*0.4*nbBaies) * 1.2, f.W*0.25);
+      const win_h  = totalBaie / (nbBaies * win_w);
+      const spacing = f.W / (nbBaies + 1);
+
+      for (let i = 0; i < nbBaies; i++) {
+        const wx = -f.W/2 + spacing*(i+1);
+        const wy = H_tot*0.4;
+        const winGeo = new THREE.BoxGeometry(win_w, win_h, 0.05);
+        const winMesh = new THREE.Mesh(winGeo, winMat.clone());
+
+        if (f.o === 'N') { winMesh.position.set(wx, wy, -Lz/2 + 0.14); }
+        if (f.o === 'S') { winMesh.position.set(wx, wy,  Lz/2 - 0.14); }
+        if (f.o === 'E') { winMesh.rotation.y = Math.PI/2; winMesh.position.set(Lx/2 - 0.14, wy, -Lz/2 + spacing*(i+1) - Lz/2); }
+        if (f.o === 'O') { winMesh.rotation.y = Math.PI/2; winMesh.position.set(-Lx/2 + 0.14, wy, -Lz/2 + spacing*(i+1) - Lz/2); }
+
+        const Uw = baisOrient[0]?.Uw || 3.0;
+        winMesh.userData = {
+          type: 'window', orient: f.o,
+          U: Uw, vit: baisOrient[0]?.vitrage || '?',
+          surf: (totalBaie/nbBaies).toFixed(1),
+        };
+        windowMeshes.push(winMesh);
+        scene3d.add(winMesh);
+      }
+    }
+  });
+
+  // ── PLANCHER + TOITURE ──
+  const floorMat = new THREE.MeshPhongMaterial({ color: 0x2a2a3e, shininess: 10 });
+  const floorGeo = new THREE.BoxGeometry(Lx, 0.2, Lz);
+  const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+  floorMesh.position.set(0, -0.1, 0);
+  floorMesh.receiveShadow = true;
+  scene3d.add(floorMesh);
+
+  // Toiture simple en pyramide tronquée
+  const roofH = 1.5;
+  const roofInset = 0.5;
+  const roofShape = new THREE.Shape();
+  const rx = Lx/2 + 0.3, rz = Lz/2 + 0.3;
+  roofShape.moveTo(-rx, -rz); roofShape.lineTo(rx, -rz);
+  roofShape.lineTo(rx, rz); roofShape.lineTo(-rx, rz); roofShape.closePath();
+  const extrudeRoof = { depth: 0.15, bevelEnabled: false };
+  const roofGeo = new THREE.ExtrudeGeometry(roofShape, extrudeRoof);
+  const roofMat = new THREE.MeshPhongMaterial({ color: 0x3a2a2a, shininess: 5 });
+  const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+  roofMesh.rotation.x = -Math.PI/2;
+  roofMesh.position.set(0, H_tot + 0.05, 0);
+  roofMesh.castShadow = true;
+  scene3d.add(roofMesh);
+
+  // Sol (ombre portée)
+  const shadowFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(Lx+2, Lz+2),
+    new THREE.ShadowMaterial({ opacity: 0.4 })
+  );
+  shadowFloor.rotation.x = -Math.PI/2;
+  shadowFloor.position.y = 0.01;
+  shadowFloor.receiveShadow = true;
+  scene3d.add(shadowFloor);
+
+  // Étage intermédiaire (ligne horizontale)
+  if (l.niveaux > 1) {
+    const edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(Lx+0.26, 0.05, Lz+0.26));
+    const edgeMat = new THREE.LineBasicMaterial({ color: 0x888888, opacity:0.5, transparent:true });
+    const edgeLine = new THREE.LineSegments(edgeGeo, edgeMat);
+    edgeLine.position.set(0, l.hsp, 0);
+    scene3d.add(edgeLine);
+  }
+
+  // Contours du bâtiment (wireframe léger)
+  const bldGeo = new THREE.BoxGeometry(Lx + 0.26, H_tot, Lz + 0.26);
+  const edges = new THREE.EdgesGeometry(bldGeo);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x444466, transparent:true, opacity:0.4 });
+  const wireframe = new THREE.LineSegments(edges, lineMat);
+  wireframe.position.set(0, H_tot/2, 0);
+  scene3d.add(wireframe);
+
+  // Indicateur Nord
+  addCompassLabel(scene3d, 0, -Lz/2 - 1.5, 'N', 0xff4444);
+  addCompassLabel(scene3d, 0,  Lz/2 + 1.5, 'S', 0x88ddff);
+  addCompassLabel(scene3d, Lx/2+1.5, 0, 'E', 0xffdd88);
+  addCompassLabel(scene3d, -Lx/2-1.5, 0, 'O', 0xaaffaa);
+
+  // Légende U-values
+  buildLegend3d(U_max);
+
+  // Raycaster pour survol
+  setupRaycaster3d();
+
+  // Lancer l'animation
+  animate3d();
+}
+
+function addCompassLabel(scene, x, z, text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#' + color.toString(16).padStart(6,'0');
+  ctx.font = 'bold 40px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 32, 48);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.set(x, 0.5, z);
+  sprite.scale.set(1.2, 1.2, 1);
+  scene.add(sprite);
+}
+
+function buildLegend3d(U_max) {
+  const wrap = document.getElementById('legend-items');
+  wrap.innerHTML = '';
+  const steps = [0, U_max*0.25, U_max*0.5, U_max*0.75, U_max];
+  const labels = ['Très bien', 'Bien', 'Moyen', 'Mauvais', 'Très mauvais'];
+  steps.forEach((u, i) => {
+    const c = uColor(u, U_max);
+    const hex = '#' + Math.round(c.r*255).toString(16).padStart(2,'0') +
+                      Math.round(c.g*255).toString(16).padStart(2,'0') +
+                      Math.round(c.b*255).toString(16).padStart(2,'0');
+    wrap.innerHTML += '<div style="display:flex;align-items:center;gap:8px">' +
+      '<div style="width:16px;height:8px;border-radius:2px;background:' + hex + '"></div>' +
+      '<span style="color:rgba(255,255,255,.7)">' + u.toFixed(2) + ' – ' + labels[i] + '</span></div>';
+  });
+}
+
+function setupRaycaster3d() {
+  const canvas = document.getElementById('canvas3d');
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  const tooltip = document.getElementById('tooltip3d');
+  const allMeshes = [...wallMeshes, ...windowMeshes];
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera3d);
+    const hits = raycaster.intersectObjects(allMeshes);
+    if (hits.length) {
+      const d = hits[0].object.userData;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+      tooltip.style.top  = (e.clientY - rect.top  - 40) + 'px';
+      if (d.type === 'wall') {
+        tooltip.innerHTML = '<strong style="color:#4ade80">Mur ' + d.orient + '</strong><br>' +
+          'Matériau: ' + d.mat + '<br>' +
+          'Surface: ' + d.surf + ' m²<br>' +
+          'U = <strong style="color:#f59e0b">' + d.U + ' W/m²K</strong><br>' +
+          (d.iso > 0 ? 'Isolation: ' + (d.iso*100).toFixed(0) + ' cm<br>' : 'Sans isolation<br>');
+      } else {
+        tooltip.innerHTML = '<strong style="color:#88ccff">Baie ' + d.orient + '</strong><br>' +
+          'Vitrage: ' + d.vit + '<br>' +
+          'Surface: ' + d.surf + ' m²<br>' +
+          'Uw = <strong style="color:#f59e0b">' + d.U + ' W/m²K</strong>';
+      }
+      // Highlight
+      allMeshes.forEach(m => {
+        if (m.userData.originalColor) m.material.color.copy(m.userData.originalColor);
+      });
+      hits[0].object.material.color.multiplyScalar(1.4);
+    } else {
+      tooltip.style.display = 'none';
+      allMeshes.forEach(m => {
+        if (m.userData.originalColor) m.material.color.copy(m.userData.originalColor);
+      });
+    }
+  });
+
+  // Drag pour orbite
+  canvas.addEventListener('mousedown', e => { isDragging=true; prevMouse={x:e.clientX,y:e.clientY}; });
+  canvas.addEventListener('mouseup',   () => { isDragging=false; });
+  canvas.addEventListener('mouseleave',() => { isDragging=false; });
+  canvas.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - prevMouse.x;
+    const dy = e.clientY - prevMouse.y;
+    camTheta -= dx * 0.01;
+    camPhi = Math.max(0.1, Math.min(Math.PI/2 - 0.05, camPhi - dy * 0.01));
+    prevMouse = {x:e.clientX, y:e.clientY};
+    updateCamera3d();
+  });
+  canvas.addEventListener('wheel', e => {
+    camDist = Math.max(5, Math.min(40, camDist + e.deltaY * 0.02));
+    updateCamera3d();
+    e.preventDefault();
+  }, {passive:false});
+}
+
+function updateCamera3d() {
+  if (!camera3d) return;
+  camera3d.position.set(
+    camDist * Math.sin(camPhi) * Math.sin(camTheta),
+    camDist * Math.cos(camPhi),
+    camDist * Math.sin(camPhi) * Math.cos(camTheta)
+  );
+  camera3d.lookAt(0, dpe3dData?.logement?.hsp || 2.5, 0);
+}
+
+function setView3d(view) {
+  document.querySelectorAll('.btn3d').forEach(b => b.classList.remove('active'));
+  const btnMap = {perspective:'btn-persp',north:'btn-north',south:'btn-south',east:'btn-east',west:'btn-west',top:'btn-top'};
+  document.getElementById(btnMap[view]).classList.add('active');
+  switch(view) {
+    case 'perspective': camTheta=Math.PI/4;  camPhi=Math.PI/3; camDist=18; break;
+    case 'north':       camTheta=Math.PI;    camPhi=Math.PI/4; camDist=16; break;
+    case 'south':       camTheta=0;          camPhi=Math.PI/4; camDist=16; break;
+    case 'east':        camTheta=Math.PI/2;  camPhi=Math.PI/4; camDist=16; break;
+    case 'west':        camTheta=-Math.PI/2; camPhi=Math.PI/4; camDist=16; break;
+    case 'top':         camTheta=Math.PI/4;  camPhi=0.05;      camDist=20; break;
+  }
+  updateCamera3d();
+}
+
+function toggleRenovation(enabled) {
+  renoMode = enabled;
+  if (!dpe3dData || !dpe3dData.scenarios.length) return;
+  const sc = dpe3dData.scenarios[dpe3dData.scenarios.length - 1]; // meilleur scénario
+  const U_max = Math.max(...wallMeshes.map(m=>parseFloat(m.userData.U)||0));
+  wallMeshes.forEach(m => {
+    if (renoMode) {
+      // Simuler amélioration — isolation murs → U divisé par 3
+      const newU = parseFloat(m.userData.U) / 3;
+      m.userData.originalColor = uColor(newU, U_max);
+    } else {
+      const Us = dpe3dData.murs.filter(w=>w.versExt && w.orientation===m.userData.orient);
+      const U_avg = Us.length ? Us.reduce((a,b)=>a+(b.U||1.5),0)/Us.length : 1.5;
+      m.userData.originalColor = uColor(U_avg, U_max);
+    }
+    m.material.color.copy(m.userData.originalColor);
+  });
+}
+
+function toggleXray(enabled) {
+  xrayMode = enabled;
+  wallMeshes.forEach(m => {
+    m.material.transparent = enabled;
+    m.material.opacity = enabled ? 0.35 : 1.0;
+    m.material.depthWrite = !enabled;
+  });
+}
+
+function animate3d() {
+  animFrame3d = requestAnimationFrame(animate3d);
+  if (renderer3d && scene3d && camera3d) {
+    renderer3d.render(scene3d, camera3d);
+  }
+}
+
+function renderParoisStats(d) {
+  const el = document.getElementById('parois3d-stats');
+  const ORIENT_LABEL = {N:'Nord',E:'Est',S:'Sud',O:'Ouest'};
+  const ETIQ_U = u => u < 0.3?'A':u<0.6?'B':u<1.0?'C':u<1.5?'D':u<2.0?'E':'F/G';
+  
+  let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
+  ['N','E','S','O'].forEach(o => {
+    const mursO = d.murs.filter(m => m.versExt && m.orientation===o);
+    if (!mursO.length) return;
+    const surfTot = mursO.reduce((a,b)=>a+b.surface,0);
+    const U_avg  = mursO.reduce((a,b)=>a+(b.U||1.5),0)/mursO.length;
+    const baisO  = d.baies.filter(b=>b.orientation===o);
+    const surfB  = baisO.reduce((a,b)=>a+b.surface,0);
+    const uColor_hex = '#' + (() => {
+      const c = uColor(U_avg, 2.5);
+      return [c.r,c.g,c.b].map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+    })();
+    html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<span style="font-size:14px;font-weight:700;color:var(--text)">Façade ' + ORIENT_LABEL[o] + '</span>';
+    html += '<span style="font-size:11px;font-family:var(--mono);padding:2px 8px;border-radius:4px;background:' + uColor_hex + '33;color:' + uColor_hex + '">U=' + U_avg.toFixed(2) + '</span></div>';
+    html += '<div style="font-size:11px;color:var(--muted);line-height:1.8">';
+    html += 'Surface mur: <strong style="color:var(--text)">' + surfTot.toFixed(1) + ' m²</strong><br>';
+    html += 'Baies: <strong style="color:var(--text)">' + (surfB?surfB.toFixed(1)+' m²':'aucune') + '</strong><br>';
+    html += 'Matériau: <strong style="color:var(--text)">' + (mursO[0]?.materiau||'?') + '</strong><br>';
+    html += 'Ratio vitrage: <strong style="color:var(--text)">' + (surfTot>0?(surfB/surfTot*100).toFixed(0)+'%':'—') + '</strong>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+window.load3dXml = load3dXml;
+window.setView3d = setView3d;
+window.toggleRenovation = toggleRenovation;
+window.toggleXray = toggleXray;
 
 /* INIT */
 buildChips();
