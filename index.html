@@ -450,7 +450,7 @@ function renderDpeCard(d, total) {
     <div class="sep"></div>
     <div class="card-title">JSON brut · réponse complète</div>
     <div class="raw">${colorizeJson(JSON.stringify(d, null, 2))}</div>
-  </div>\`;
+  </div>`;
 }
 
 /* ─────────────────────────────────────────
@@ -505,8 +505,7 @@ function renderStats(data, cp) {
   const modeE = ['A','B','C','D','E','F','G'].reduce((a,b) => EC[a] >= EC[b] ? a : b);
   const enrgTop = Object.entries(enrg).sort((a,b) => b[1]-a[1]).slice(0, 5);
   const enrgMax = enrgTop[0]?.[1] || 1;
-  const typesHtml = Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,c]) =>
-    `<span style="font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--muted)">${t} <strong style="color:var(--text)">${c}</strong></span>`).join('');
+  const typesHtml = Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,c]) => '<span style="font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);color:#6b7280;margin:2px;display:inline-block">' + t + ' <strong style="color:#e8eaf0">' + c + '</strong></span>').join('');
 
   document.getElementById('result-stats').innerHTML = `
   <div class="card">
