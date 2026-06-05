@@ -131,6 +131,9 @@ tr:hover td{background:var(--surface2)}
 /* DIVIDER */
 .sep{height:1px;background:var(--border);margin:16px 0}
 
+
+.addr-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;cursor:pointer;transition:border-color .2s}
+.addr-result-card:hover{border-color:rgba(74,222,128,.4)}
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -171,6 +174,9 @@ tr:hover td{background:var(--surface2)}
     <div class="nav-item active" onclick="show('search')">
       <span class="ico">🔍</span> Recherche par N° DPE
     </div>
+    <div class="nav-item" onclick="show('addr')">
+      <span class="ico">📍</span> Recherche par adresse
+    </div>
     <div class="nav-section">Analyse</div>
     <div class="nav-item" onclick="show('stats')">
       <span class="ico">📊</span> Stats par ville
@@ -205,6 +211,39 @@ tr:hover td{background:var(--surface2)}
       <div class="url-bar" id="url-search">—</div>
       <div class="status" id="st-search"></div>
       <div id="result-search"></div>
+    </div>
+
+    <!-- PANEL : RECHERCHE ADRESSE -->
+    <div class="panel" id="panel-addr">
+      <h1>Recherche par adresse</h1>
+      <p class="subtitle">Retrouve les DPE d&#39;un logement par sa ville, sa rue et son numéro</p>
+      <div class="row">
+        <div class="field" style="max-width:200px">
+          <label>Numéro</label>
+          <input type="text" id="inp-num" placeholder="ex : 30" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field">
+          <label>Rue</label>
+          <input type="text" id="inp-rue" placeholder="ex : Rue Jean Becaert" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:200px">
+          <label>Ville ou code postal</label>
+          <input type="text" id="inp-ville" placeholder="ex : Dunkerque ou 59140" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:120px">
+          <label>Résultats</label>
+          <select id="inp-addr-size">
+            <option value="5">5</option>
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-addr" onclick="searchAddr()">→ Rechercher</button>
+      </div>
+      <div class="url-bar" id="url-addr">—</div>
+      <div class="status" id="st-addr"></div>
+      <div id="result-addr"></div>
     </div>
 
     <!-- PANEL : STATS -->
@@ -755,6 +794,126 @@ function colorizeJson(str) {
       if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
       return `<span class="json-num">${m}</span>`;
     });
+}
+
+/* ─────────────────────────────────────────
+   ONGLET ADRESSE
+───────────────────────────────────────── */
+async function searchAddr() {
+  const num   = document.getElementById('inp-num').value.trim();
+  const rue   = document.getElementById('inp-rue').value.trim();
+  const ville = document.getElementById('inp-ville').value.trim();
+  const size  = document.getElementById('inp-addr-size').value;
+
+  if (!rue && !ville) {
+    setStatus('addr', 'err', '⚠ Renseignez au moins une rue ou une ville.');
+    return;
+  }
+
+  // Construire la requête : concaténation des champs non vides
+  const parts = [num, rue, ville].filter(Boolean).join(' ');
+  const params = { q: parts, size: size };
+  const url = buildUrl(params);
+  document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+
+  const data = await apiFetch(url, 'btn-addr', 'addr');
+  if (!data) return;
+  renderAddrResults(data, parts);
+}
+
+function renderAddrResults(data, query) {
+  const el = document.getElementById('result-addr');
+  const res = data.results || [];
+  const total = data.total || 0;
+
+  if (!res.length) {
+    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.</div>';
+    return;
+  }
+
+  const etiqColors = {
+    A:{bg:'#1a5c3a',tx:'#4ade80'}, B:{bg:'#2d5e16',tx:'#86efac'},
+    C:{bg:'#4d6b0f',tx:'#bef264'}, D:{bg:'#7c5a08',tx:'#fde68a'},
+    E:{bg:'#7c3a08',tx:'#fdba74'}, F:{bg:'#7c1212',tx:'#fca5a5'},
+    G:{bg:'#500d0d',tx:'#ef4444'}
+  };
+
+  function badge(v) {
+    if (!v) return '<span style="color:var(--muted)">—</span>';
+    const c = etiqColors[v] || {bg:'#333',tx:'#fff'};
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;font-size:13px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+  }
+
+  // Header résultats
+  let html = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px">'
+    + '<span style="color:var(--accent);font-weight:600">' + total.toLocaleString('fr-FR') + '</span>'
+    + ' DPE trouvés · ' + res.length + ' affichés'
+    + '</div>';
+
+  // Liste des résultats cliquables
+  html += '<div style="display:flex;flex-direction:column;gap:8px">';
+  res.forEach((d, i) => {
+    const eDpe = d['etiquette_dpe'] || '';
+    const eGes = d['etiquette_ges'] || '';
+    const adresse = d['adresse_brut'] || d['adresse_ban'] || '';
+    const cp = d['code_postal_ban'] || '';
+    const ville2 = d['nom_commune_ban'] || '';
+    const surf = d['surface_habitable_logement'] ? fmtN(d['surface_habitable_logement']) + ' m²' : '—';
+    const periode = d['periode_construction'] || '—';
+    const conso = d['conso_5_usages_par_m2_ef'] ? fmtN(d['conso_5_usages_par_m2_ef']) + ' kWh/m²' : '—';
+    const cout = d['cout_total_5_usages'] ? fmtN(d['cout_total_5_usages']) + ' €/an' : '—';
+    const numDpe = d['numero_dpe'] || '';
+    const dateEtab = d['date_etablissement_dpe'] || '';
+    const energie = d['type_energie_principale_chauffage'] || '—';
+
+    html += '<div onclick="loadDpeFromAddr(' + JSON.stringify(JSON.stringify(d)).replace(/'/g,"&#39;") + ')" '
+      + 'style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;cursor:pointer;transition:border-color .15s;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center" '
+
+      // Badges
+      + '<div style="display:flex;flex-direction:column;gap:6px;align-items:center">'
+      + badge(eDpe)
+      + badge(eGes)
+      + '</div>'
+
+      // Infos principales
+      + '<div>'
+      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px">' + adresse + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">' + cp + ' ' + ville2 + '</div>'
+      + '<div style="display:flex;gap:16px;flex-wrap:wrap">'
+      + '<span style="font-size:11px;color:var(--muted)">📐 <strong style="color:var(--text)">' + surf + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">🏗 <strong style="color:var(--text)">' + periode + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">⚡ <strong style="color:var(--accent2)">' + conso + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">💰 <strong style="color:#f59e0b">' + cout + '</strong></span>'
+      + '<span style="font-size:11px;color:var(--muted)">🔥 <strong style="color:var(--text)">' + energie + '</strong></span>'
+      + '</div>'
+      + '</div>'
+
+      // Méta droite
+      + '<div style="text-align:right;min-width:120px">'
+      + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono)">N° DPE</div>'
+      + '<div style="font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);word-break:break-all">' + numDpe + '</div>'
+      + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:6px">Établi le</div>'
+      + '<div style="font-size:11px;font-family:var(--mono)">' + dateEtab + '</div>'
+      + '<div style="font-size:10px;color:#4ade80;font-family:var(--mono);margin-top:6px">→ Voir détail</div>'
+      + '</div>'
+
+      + '</div>';
+  });
+  html += '</div>';
+
+  el.innerHTML = html;
+}
+
+function loadDpeFromAddr(jsonStr) {
+  const d = JSON.parse(jsonStr);
+  // Basculer sur l'onglet recherche et afficher la fiche complète
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-search').classList.add('active');
+  document.querySelectorAll('.nav-item')[0].classList.add('active');
+  document.getElementById('result-search').innerHTML = renderDpeCard(d, 1);
+  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>Chargé depuis la recherche adresse</span>';
+  window.scrollTo(0, 0);
 }
 
 /* INIT */
