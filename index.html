@@ -616,7 +616,29 @@ function renderDpeCard(d, total) {
     + '<div style="font-size:12px;font-weight:500;font-family:var(--mono)">' + fmt(d['date_visite_diagnostiqueur']) + '</div>'
     + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:4px">Valide jusqu&#39;au</div>'
     + '<div style="font-size:12px;font-weight:500;font-family:var(--mono);color:#4ade80">' + fmt(d['date_fin_validite_dpe']) + '</div>'
-    + '</div></div></div>'
+    + '</div>'
+    // Liens externes dans l'entête fiche
+    + (function() {
+        const _gp = d['_geopoint'] || '';
+        let _lat = null, _lon = null;
+        if (_gp) { const _p = _gp.split(','); _lat = parseFloat(_p[0]); _lon = parseFloat(_p[1]); }
+        const _rnb  = d['id_rnb'] ? 'https://rnb.beta.gouv.fr/batiment/' + d['id_rnb'] : '';
+        const _cad  = _lat && _lon ? 'https://www.cadastre.gouv.fr/scpc/rechercherPlan.do?lng=' + _lon + '&lat=' + _lat : '';
+        const _ign  = _lat && _lon ? 'https://www.geoportail.gouv.fr/carte?c=' + _lon + ',' + _lat + '&z=20&l0=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(1)&l1=CADASTRALPARCELS.PARCELLAIRE_EXPRESS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes' : '';
+        const _maps = _lat && _lon ? 'https://www.google.com/maps/search/?api=1&query=' + _lat + ',' + _lon : '';
+        const _sv   = _lat && _lon ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + _lat + ',' + _lon : '';
+        const _ademe = d['numero_dpe'] ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + d['numero_dpe'] : '';
+        let links = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)">';
+        if (_maps)  links += '<a href="' + _maps  + '" target="_blank" rel="noopener" class="action-link">🗺 Maps</a>';
+        if (_sv)    links += '<a href="' + _sv    + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>';
+        if (_ademe) links += '<a href="' + _ademe + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 ADEME</a>';
+        if (_cad)   links += '<a href="' + _cad   + '" target="_blank" rel="noopener" class="action-link" style="color:#f59e0b">📐 Cadastre</a>';
+        if (_ign)   links += '<a href="' + _ign   + '" target="_blank" rel="noopener" class="action-link" style="color:#a78bfa">🗾 IGN Parcelle</a>';
+        if (_rnb)   links += '<a href="' + _rnb   + '" target="_blank" rel="noopener" class="action-link" style="color:#22d3ee">🏗 RNB ' + (d['id_rnb'] || '') + '</a>';
+        links += '</div>';
+        return links;
+      })()
+    + '</div></div>'
 
     // ── KPIs principaux ──
     + '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">'
@@ -1111,7 +1133,21 @@ function renderAddrResults(data, query) {
       ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lon
       : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
 
-    const ademeUrl = numDpe ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + numDpe : '';
+    const ademeUrl   = numDpe ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + numDpe : '';
+
+    // Cadastre & RNB
+    const rnbId      = d['id_rnb'] || '';
+    const rnbUrl     = rnbId ? 'https://rnb.beta.gouv.fr/batiment/' + rnbId : '';
+
+    // Cadastre.gouv.fr — centré sur les coordonnées GPS
+    const cadastreUrl = lat && lon
+      ? 'https://www.cadastre.gouv.fr/scpc/rechercherPlan.do?lng=' + lon + '&lat=' + lat
+      : '';
+
+    // IGN Géoportail — couche cadastrale parcellaire
+    const ignUrl = lat && lon
+      ? 'https://www.geoportail.gouv.fr/carte?c=' + lon + ',' + lat + '&z=20&l0=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2::GEOPORTAIL:OGC:WMTS(1)&l1=CADASTRALPARCELS.PARCELLAIRE_EXPRESS::GEOPORTAIL:OGC:WMTS(1)&permalink=yes'
+      : '';
 
     // Iframe Google Maps embed centrée sur les coordonnées GPS exactes
     const mapEmbedSrc = lat && lon
@@ -1161,7 +1197,10 @@ function renderAddrResults(data, query) {
       + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">'
       + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" class="action-link">🗺 Google Maps</a>'
       + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>'
-      + (ademeUrl ? '<a href="' + ademeUrl + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 Page ADEME</a>' : '')
+      + (ademeUrl    ? '<a href="' + ademeUrl    + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 ADEME</a>' : '')
+      + (cadastreUrl ? '<a href="' + cadastreUrl + '" target="_blank" rel="noopener" class="action-link" style="color:#f59e0b">📐 Cadastre</a>' : '')
+      + (ignUrl      ? '<a href="' + ignUrl      + '" target="_blank" rel="noopener" class="action-link" style="color:#a78bfa">🗾 IGN Parcelle</a>' : '')
+      + (rnbUrl      ? '<a href="' + rnbUrl      + '" target="_blank" rel="noopener" class="action-link" style="color:#22d3ee">🏗 RNB</a>' : '')
       + '<button onclick="loadDpeFromAddrB64(\'' + dJson + '\')" class="action-link action-btn">🔍 Détail complet</button>'
       + '</div>'
 
