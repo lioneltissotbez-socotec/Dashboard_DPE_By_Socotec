@@ -132,8 +132,11 @@ tr:hover td{background:var(--surface2)}
 .sep{height:1px;background:var(--border);margin:16px 0}
 
 
-.addr-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;cursor:pointer;transition:border-color .2s}
+.addr-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s}
 .addr-result-card:hover{border-color:rgba(74,222,128,.4)}
+.action-link{font-family:var(--mono);font-size:10px;padding:3px 8px;border-radius:4px;background:rgba(255,255,255,.06);border:1px solid var(--border2);color:var(--muted);text-decoration:none;white-space:nowrap;transition:all .15s;display:inline-flex;align-items:center;gap:3px}
+.action-link:hover{border-color:var(--accent);color:var(--accent)}
+.action-btn{cursor:pointer;font-size:10px}
 /* FILTRES */
 .f-btn{font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;border:2px solid transparent;opacity:.55;transition:opacity .15s,border-color .15s}
 .f-btn:hover{opacity:.8}
@@ -1052,18 +1055,18 @@ function renderAddrResults(data, query) {
     return '<span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:5px;font-size:13px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
   }
 
-  // Header résultats
   let html = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px">'
     + '<span style="color:var(--accent);font-weight:600">' + total.toLocaleString('fr-FR') + '</span>'
     + ' DPE trouvés · ' + res.length + ' affichés'
     + '</div>';
 
-  // Liste des résultats cliquables
-  html += '<div style="display:flex;flex-direction:column;gap:8px">';
-  res.forEach((d, i) => {
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+
+  res.forEach(function(d) {
     const eDpe = d['etiquette_dpe'] || '';
     const eGes = d['etiquette_ges'] || '';
-    const adresse = d['adresse_brut'] || d['adresse_ban'] || '';
+    const adresse = d['adresse_ban'] || d['adresse_brut'] || '';
+    const adresseBrut = d['adresse_brut'] || '';
     const cp = d['code_postal_ban'] || '';
     const ville2 = d['nom_commune_ban'] || '';
     const surf = d['surface_habitable_logement'] ? fmtN(d['surface_habitable_logement']) + ' m²' : '—';
@@ -1073,42 +1076,88 @@ function renderAddrResults(data, query) {
     const numDpe = d['numero_dpe'] || '';
     const dateEtab = d['date_etablissement_dpe'] || '';
     const energie = d['type_energie_principale_chauffage'] || '—';
+    const lat = d['coordonnee_cartographique_y_ban'];
+    const lon = d['coordonnee_cartographique_x_ban'];
 
-    html += '<div onclick="loadDpeFromAddr(' + JSON.stringify(JSON.stringify(d)).replace(/'/g,"&#39;") + ')" '
-      + 'style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;cursor:pointer;transition:border-color .15s;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center" '
+    // URLs utiles
+    const adresseEncode = encodeURIComponent((adresseBrut || adresse) + ' ' + cp + ' ' + ville2);
+    const googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+    const streetViewUrl = lat && lon
+      ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lon
+      : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+    const ademeUrl = numDpe ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + numDpe : '';
 
-      // Badges
-      + '<div style="display:flex;flex-direction:column;gap:6px;align-items:center">'
-      + badge(eDpe)
-      + badge(eGes)
+    // Miniature Street View via Google Maps Embed Static (pas de clé API nécessaire pour embed basique)
+    // On utilise une iframe Google Maps embed pour la vignette carto
+    const mapThumbUrl = lat && lon
+      ? 'https://maps.googleapis.com/maps/api/staticmap?center=' + lat + ',' + lon + '&zoom=17&size=120x80&maptype=roadmap&key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3s_o'
+      : null;
+
+    // Fonction inline pour charger la fiche complète
+    const dJson = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+
+    html += '<div class="addr-result-card" style="display:grid;grid-template-columns:130px 1fr auto;gap:0;overflow:hidden">'
+
+      // ── Colonne vignette carto ──
+      + '<div style="position:relative;background:#1a1a1a;display:flex;flex-direction:column">'
+      // Vignette Google Maps (iframe embed léger)
+      + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" title="Voir sur Google Maps" style="display:block;flex:1;overflow:hidden;text-decoration:none">'
+      + '<iframe src="https://maps.google.com/maps?q=' + adresseEncode + '&output=embed&z=17" '
+      + 'width="130" height="90" style="border:none;pointer-events:none;display:block" loading="lazy" referrerpolicy="no-referrer"></iframe>'
+      + '<div style="position:absolute;top:0;left:0;right:0;bottom:20px;cursor:pointer"></div>'
+      + '</a>'
+      // Lien Street View en bas de la vignette
+      + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" '
+      + 'style="display:flex;align-items:center;justify-content:center;gap:4px;padding:3px 6px;background:rgba(0,0,0,.7);font-size:10px;color:#4ade80;text-decoration:none;font-family:var(--mono)">'
+      + '👁 Street View</a>'
       + '</div>'
 
-      // Infos principales
-      + '<div>'
-      + '<div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px">' + adresse + '</div>'
-      + '<div style="font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:8px">' + cp + ' ' + ville2 + '</div>'
-      + '<div style="display:flex;gap:16px;flex-wrap:wrap">'
+      // ── Colonne infos principale ──
+      + '<div style="padding:12px 16px;display:flex;flex-direction:column;gap:8px;min-width:0">'
+
+      // Ligne 1 : badges + adresse
+      + '<div style="display:flex;align-items:flex-start;gap:10px">'
+      + '<div style="display:flex;gap:5px;flex-shrink:0">' + badge(eDpe) + badge(eGes) + '</div>'
+      + '<div style="min-width:0">'
+      + '<div style="font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + adresseBrut + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);font-family:var(--mono)">' + cp + ' ' + ville2 + '</div>'
+      + '</div></div>'
+
+      // Ligne 2 : métriques clés
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap">'
       + '<span style="font-size:11px;color:var(--muted)">📐 <strong style="color:var(--text)">' + surf + '</strong></span>'
       + '<span style="font-size:11px;color:var(--muted)">🏗 <strong style="color:var(--text)">' + periode + '</strong></span>'
       + '<span style="font-size:11px;color:var(--muted)">⚡ <strong style="color:var(--accent2)">' + conso + '</strong></span>'
       + '<span style="font-size:11px;color:var(--muted)">💰 <strong style="color:#f59e0b">' + cout + '</strong></span>'
       + '<span style="font-size:11px;color:var(--muted)">🔥 <strong style="color:var(--text)">' + energie + '</strong></span>'
       + '</div>'
+
+      // Ligne 3 : liens actions
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px">'
+      + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" class="action-link">🗺 Google Maps</a>'
+      + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>'
+      + (ademeUrl ? '<a href="' + ademeUrl + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 Page ADEME</a>' : '')
+      + '<button onclick="window._dpeStore && loadDpeFromAddrB64(\'' + dJson + '\')" class="action-link action-btn">🔍 Détail complet</button>'
       + '</div>'
 
-      // Méta droite
-      + '<div style="text-align:right;min-width:120px">'
-      + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono)">N° DPE</div>'
-      + '<div style="font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);word-break:break-all">' + numDpe + '</div>'
-      + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:6px">Établi le</div>'
+      + '</div>'
+
+      // ── Colonne méta droite ──
+      + '<div style="padding:12px 14px;text-align:right;border-left:1px solid var(--border);min-width:110px;display:flex;flex-direction:column;gap:6px;justify-content:center">'
+      + '<div>'
+      + '<div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">N° DPE</div>'
+      + '<div style="font-size:10px;font-weight:600;color:var(--accent);font-family:var(--mono);word-break:break-all">' + numDpe + '</div>'
+      + '</div>'
+      + '<div>'
+      + '<div style="font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em">Établi le</div>'
       + '<div style="font-size:11px;font-family:var(--mono)">' + dateEtab + '</div>'
-      + '<div style="font-size:10px;color:#4ade80;font-family:var(--mono);margin-top:6px">→ Voir détail</div>'
+      + '</div>'
       + '</div>'
 
       + '</div>';
   });
-  html += '</div>';
 
+  html += '</div>';
   el.innerHTML = html;
 }
 
