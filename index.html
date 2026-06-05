@@ -1453,7 +1453,8 @@ function parseXmlDpe(doc) {
     const consoAp = pack.getElementsByTagName('conso_5_usages_apres_travaux')[0];
     const gesAp   = pack.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
     const conso_a = consoAp ? parseFloat(consoAp.textContent) : 0;
-    const m2_ap   = surf > 0 ? Math.round(conso_a / surf) : 0;
+    // conso_5_usages_apres_travaux est en kWh/m²/an (pas en kWh total)
+    const m2_ap   = Math.round(conso_a);
     const cout_mn = cMin ? parseFloat(cMin.textContent) : 0;
     const cout_mx = cMax ? parseFloat(cMax.textContent) : 0;
     const etapes  = [];
@@ -1467,14 +1468,15 @@ function parseXmlDpe(doc) {
         const get2 = trav.getElementsByTagName('emission_ges_5_usages_apres_travaux')[0];
         const lotId = lot ? lot.textContent.trim() : '?';
         const c_et = cet ? parseFloat(cet.textContent) : null;
+        // conso_5_usages_apres_travaux des étapes est aussi en kWh/m²/an
         etapes.push({
           lot: lotId,
           info: LOTS[lotId] || ['🔧', lotId],
           desc: desc ? desc.textContent.trim() : '',
           perf: perf ? perf.textContent.trim() : '',
           conso_ap: c_et,
-          m2_ap: (c_et && surf > 0) ? Math.round(c_et / surf) : null,
-          etiq_ap: (c_et && surf > 0) ? calcEtiq(c_et / surf) : null,
+          m2_ap: c_et ? Math.round(c_et) : null,
+          etiq_ap: c_et ? calcEtiq(c_et) : null,
           ges_ap: get2 ? parseFloat(get2.textContent) : null,
         });
       }
@@ -1599,7 +1601,9 @@ function renderRenoPlan(d) {
   if (d.scenarios.length) {
     html += '<div style="font-size:15px;font-weight:700;margin:20px 0 12px">🔧 Scénarios de rénovation</div>';
     d.scenarios.forEach((sc, i) => {
-      const gain = sc.cout_min > 500 ? Math.round(p.cout_total * (1 - sc.conso_ap_kwh / (p.conso_ef_m2 * l.surface))) : null;
+      // Gain annuel = économie sur le coût total proportionnelle à la baisse de conso
+      const gain_ratio = p.conso_ef_m2 > 0 ? (p.conso_ef_m2 - sc.conso_ap_m2) / p.conso_ef_m2 : 0;
+      const gain = gain_ratio > 0 ? Math.round(p.cout_total * gain_ratio) : null;
       html += '<div class="reno-card">';
       html += '<div class="reno-card-head">';
       html += '<div class="scenario-num" style="background:rgba(74,222,128,.15);color:var(--accent)">' + (i+1) + '</div>';
@@ -1611,7 +1615,10 @@ function renderRenoPlan(d) {
       // Métriques scénario
       html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">';
       html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
-      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f59e0b">' + (sc.cout_min > 500 ? fmtK(sc.cout_min)+' → '+fmtK(sc.cout_max) : 'N/R') + '</div>';
+      const coutStr = sc.cout_min > 500 
+        ? fmtK(sc.cout_min) + ' → ' + fmtK(sc.cout_max)
+        : '<span style="font-size:12px;color:var(--muted)">Non renseigné</span>';
+      html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#f59e0b">' + coutStr + '</div>';
       html += '<div style="font-size:10px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Coût estimé</div></div>';
       html += '<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px">';
       html += '<div style="font-size:16px;font-weight:700;font-family:var(--mono);color:#22d3ee">' + fmtN(sc.conso_ap_m2,' kWh/m²') + '</div>';
