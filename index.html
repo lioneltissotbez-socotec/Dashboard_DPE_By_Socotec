@@ -1076,22 +1076,33 @@ function renderAddrResults(data, query) {
     const numDpe = d['numero_dpe'] || '';
     const dateEtab = d['date_etablissement_dpe'] || '';
     const energie = d['type_energie_principale_chauffage'] || '—';
-    const lat = d['coordonnee_cartographique_y_ban'];
-    const lon = d['coordonnee_cartographique_x_ban'];
 
-    // URLs utiles
+
+    // Coordonnées GPS WGS84 — utiliser _geopoint (lat,lon) pas les coordonnées Lambert 93
+    const geopoint = d['_geopoint'] || '';
+    let lat = null, lon = null;
+    if (geopoint) {
+      const parts2 = geopoint.split(',');
+      lat = parseFloat(parts2[0]); // latitude WGS84
+      lon = parseFloat(parts2[1]); // longitude WGS84
+    }
+
     const adresseEncode = encodeURIComponent((adresseBrut || adresse) + ' ' + cp + ' ' + ville2);
-    const googleMapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+    const googleMapsUrl = lat && lon
+      ? 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon
+      : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+
+    // Street View : utiliser les coordonnées GPS WGS84 exactes
     const streetViewUrl = lat && lon
       ? 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + lat + ',' + lon
       : 'https://www.google.com/maps/search/?api=1&query=' + adresseEncode;
+
     const ademeUrl = numDpe ? 'https://observatoire-dpe-audit.ademe.fr/afficher-dpe/' + numDpe : '';
 
-    // Miniature Street View via Google Maps Embed Static (pas de clé API nécessaire pour embed basique)
-    // On utilise une iframe Google Maps embed pour la vignette carto
-    const mapThumbUrl = lat && lon
-      ? 'https://maps.googleapis.com/maps/api/staticmap?center=' + lat + ',' + lon + '&zoom=17&size=120x80&maptype=roadmap&key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU3s_o'
-      : null;
+    // Iframe Google Maps embed centrée sur les coordonnées GPS exactes
+    const mapEmbedSrc = lat && lon
+      ? 'https://maps.google.com/maps?q=' + lat + ',' + lon + '&output=embed&z=18'
+      : 'https://maps.google.com/maps?q=' + adresseEncode + '&output=embed&z=17';
 
     // Fonction inline pour charger la fiche complète
     const dJson = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
@@ -1102,7 +1113,7 @@ function renderAddrResults(data, query) {
       + '<div style="position:relative;background:#1a1a1a;display:flex;flex-direction:column">'
       // Vignette Google Maps (iframe embed léger)
       + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" title="Voir sur Google Maps" style="display:block;flex:1;overflow:hidden;text-decoration:none">'
-      + '<iframe src="https://maps.google.com/maps?q=' + adresseEncode + '&output=embed&z=17" '
+      + '<iframe src="' + mapEmbedSrc + '" '
       + 'width="130" height="90" style="border:none;pointer-events:none;display:block" loading="lazy" referrerpolicy="no-referrer"></iframe>'
       + '<div style="position:absolute;top:0;left:0;right:0;bottom:20px;cursor:pointer"></div>'
       + '</a>'
@@ -1137,7 +1148,7 @@ function renderAddrResults(data, query) {
       + '<a href="' + googleMapsUrl + '" target="_blank" rel="noopener" class="action-link">🗺 Google Maps</a>'
       + '<a href="' + streetViewUrl + '" target="_blank" rel="noopener" class="action-link">👁 Street View</a>'
       + (ademeUrl ? '<a href="' + ademeUrl + '" target="_blank" rel="noopener" class="action-link" style="color:var(--accent2)">🏛 Page ADEME</a>' : '')
-      + '<button onclick="window._dpeStore && loadDpeFromAddrB64(\'' + dJson + '\')" class="action-link action-btn">🔍 Détail complet</button>'
+      + '<button onclick="loadDpeFromAddrB64(\'' + dJson + '\')" class="action-link action-btn">🔍 Détail complet</button>'
       + '</div>'
 
       + '</div>'
