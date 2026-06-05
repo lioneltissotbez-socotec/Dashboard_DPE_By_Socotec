@@ -364,94 +364,203 @@ async function searchDpe() {
 }
 
 function renderDpeCard(d, total) {
-  // Vrais noms de champs confirmés par l'API dpe03existant
   const eDpe = d['etiquette_dpe'] || '';
   const eGes = d['etiquette_ges'] || '';
-  return `
-  <div class="card">
-    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;flex-wrap:wrap">
-      <div>${etiq(eDpe, true)}</div>
-      <div style="flex:1;min-width:180px">
-        <div style="font-size:16px;font-weight:700;margin-bottom:4px">${fmt(d['adresse_brut'])}</div>
-        <div style="color:var(--muted);font-family:var(--mono);font-size:12px">${fmt(d['code_postal_ban'])} ${fmt(d['nom_commune_ban'])}</div>
-        <div style="color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:4px">N° DPE · ${fmt(d['numero_dpe'])}</div>
-      </div>
-      <div style="text-align:right">
-        <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">RÉSULTATS API</div>
-        <div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--mono)">${total}</div>
-      </div>
-    </div>
 
-    <div class="metrics">
-      <div class="metric accent"><div class="v">${etiq(eDpe)}</div><div class="l">Étiquette énergie</div></div>
-      <div class="metric"><div class="v">${etiq(eGes)}</div><div class="l">Étiquette GES</div></div>
-      <div class="metric cyan"><div class="v">${fmtN(d['conso_5_usages_ef'])}</div><div class="l">kWh énergie finale/an</div></div>
-      <div class="metric amber"><div class="v">${fmtN(d['conso_5_usages_par_m2_ef'])}</div><div class="l">kWh/m²/an conv.</div></div>
-      <div class="metric"><div class="v">${fmtN(d['emission_ges_5_usages_par_m2'])}</div><div class="l">kg CO₂/m²/an</div></div>
-      <div class="metric"><div class="v">${fmtN(d['surface_habitable_logement'])} m²</div><div class="l">Surface habitable</div></div>
-    </div>
+  const etiqColors = {
+    A:{bg:'#1a5c3a',tx:'#4ade80'}, B:{bg:'#2d5e16',tx:'#86efac'},
+    C:{bg:'#4d6b0f',tx:'#bef264'}, D:{bg:'#7c5a08',tx:'#fde68a'},
+    E:{bg:'#7c3a08',tx:'#fdba74'}, F:{bg:'#7c1212',tx:'#fca5a5'},
+    G:{bg:'#500d0d',tx:'#ef4444'}
+  };
 
-    <div class="sep"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap">
-      <div>
-        <div class="card-title">Logement</div>
-        <div class="kv">
-          <span class="k">Type</span><span class="val">${fmt(d['type_batiment'])}</span>
-          <span class="k">Construction</span><span class="val">${fmt(d['periode_construction'])}</span>
-          <span class="k">Niveaux</span><span class="val">${fmt(d['nombre_niveau_logement'])}</span>
-          <span class="k">Haut. plafond</span><span class="val">${fmt(d['hauteur_sous_plafond'])} m</span>
-          <span class="k">Zone climatique</span><span class="val">${fmt(d['zone_climatique'])}</span>
-          <span class="k">Inertie</span><span class="val">${fmt(d['classe_inertie_batiment'])}</span>
-        </div>
-      </div>
-      <div>
-        <div class="card-title">Équipements</div>
-        <div class="kv">
-          <span class="k">Chauffage</span><span class="val">${fmt(d['type_energie_principale_chauffage'])}</span>
-          <span class="k">Générateur</span><span class="val">${fmt(d['type_generateur_n1_installation_n1'])}</span>
-          <span class="k">ECS</span><span class="val">${fmt(d['type_energie_principale_ecs'])}</span>
-          <span class="k">Ventilation</span><span class="val">${fmt(d['type_ventilation'])}</span>
-          <span class="k">Émetteur</span><span class="val">${fmt(d['type_emetteur_installation_chauffage_n1'])?.split(' sur')[0]}</span>
-        </div>
-      </div>
-    </div>
+  function badge(v, size) {
+    if (!v) return '<span style="color:var(--muted)">—</span>';
+    const c = etiqColors[v] || {bg:'#333',tx:'#fff'};
+    const sz = size === 'lg' ? '52px;font-size:28px' : '28px;font-size:14px';
+    return '<span style="display:inline-flex;align-items:center;justify-content:center;width:' + sz + ';height:' + (size==='lg'?'52':'28') + 'px;border-radius:8px;font-weight:700;font-family:var(--mono);background:' + c.bg + ';color:' + c.tx + '">' + v + '</span>';
+  }
 
-    <div class="sep"></div>
-    <div class="card-title">Coûts annuels estimés</div>
-    <div class="metrics">
-      <div class="metric"><div class="v">${fmtN(d['cout_chauffage'])} €</div><div class="l">Chauffage</div></div>
-      <div class="metric"><div class="v">${fmtN(d['cout_ecs'])} €</div><div class="l">Eau chaude</div></div>
-      <div class="metric"><div class="v">${fmtN(d['cout_eclairage'])} €</div><div class="l">Éclairage</div></div>
-      <div class="metric"><div class="v">${fmtN(d['cout_auxiliaires'])} €</div><div class="l">Auxiliaires</div></div>
-      <div class="metric amber"><div class="v">${fmtN(d['cout_total_5_usages'])} €</div><div class="l">Total annuel</div></div>
-    </div>
+  function row(label, value) {
+    const v = (value !== null && value !== undefined && value !== '') ? value : '—';
+    return '<div style="display:contents"><span style="color:var(--muted);font-size:11px;font-family:var(--mono);padding:6px 0;border-bottom:1px solid var(--border)">' + label + '</span><span style="font-size:12px;font-weight:500;color:var(--text);padding:6px 0;border-bottom:1px solid var(--border);word-break:break-word">' + v + '</span></div>';
+  }
 
-    <div class="sep"></div>
-    <div class="card-title">Isolation & qualité enveloppe</div>
-    <div class="kv">
-      <span class="k">Murs</span><span class="val">${fmt(d['qualite_isolation_murs'])}</span>
-      <span class="k">Menuiseries</span><span class="val">${fmt(d['qualite_isolation_menuiseries'])}</span>
-      <span class="k">Plancher bas</span><span class="val">${fmt(d['qualite_isolation_plancher_bas'])}</span>
-      <span class="k">Plancher haut</span><span class="val">${fmt(d['qualite_isolation_plancher_haut_comble_perdu'])}</span>
-      <span class="k">Enveloppe globale</span><span class="val">${fmt(d['qualite_isolation_enveloppe'])}</span>
-      <span class="k">Confort été</span><span class="val">${fmt(d['indicateur_confort_ete'])}</span>
-    </div>
+  function block(title, color, rows) {
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+      + '<div style="background:' + color + ';padding:8px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)">' + title + '</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;padding:4px 14px">'
+      + rows
+      + '</div></div>';
+  }
 
-    <div class="sep"></div>
-    <div class="card-title">Diagnostiqueur & dates</div>
-    <div class="kv">
-      <span class="k">Méthode DPE</span><span class="val">${fmt(d['methode_application_dpe'])}</span>
-      <span class="k">Date visite</span><span class="val">${fmt(d['date_visite_diagnostiqueur'])}</span>
-      <span class="k">Date établissement</span><span class="val">${fmt(d['date_etablissement_dpe'])}</span>
-      <span class="k">Date fin validité</span><span class="val">${fmt(d['date_fin_validite_dpe'])}</span>
-      <span class="k">N° DPE</span><span class="val" style="font-family:var(--font-mono);font-size:12px">${fmt(d['numero_dpe'])}</span>
-    </div>
+  function metricBox(value, label, color) {
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">'
+      + '<div style="font-size:24px;font-weight:700;color:' + (color||'var(--text)') + ';font-family:var(--mono);line-height:1">' + (value||'—') + '</div>'
+      + '<div style="font-size:10px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.08em">' + label + '</div>'
+      + '</div>';
+  }
 
-    <div class="sep"></div>
-    <div class="card-title">JSON brut · réponse complète</div>
-    <div class="raw">${colorizeJson(JSON.stringify(d, null, 2))}</div>
-  </div>`;
+  return '<div style="display:flex;flex-direction:column;gap:16px">'
+
+    // ── ENTÊTE ──
+    + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px">'
+    + '<div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">'
+    + '<div style="display:flex;gap:12px;align-items:center">'
+    + badge(eDpe, 'lg')
+    + '<div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Énergie</div>'
+    + badge(eGes, 'lg')
+    + '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px">GES</div></div>'
+    + '</div>'
+    + '<div style="flex:1;min-width:180px">'
+    + '<div style="font-size:15px;font-weight:700;margin-bottom:4px;line-height:1.3">' + fmt(d['adresse_brut']) + '</div>'
+    + '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:2px">' + fmt(d['code_postal_ban']) + ' ' + fmt(d['nom_commune_ban']) + '</div>'
+    + '<div style="font-family:var(--mono);font-size:11px;color:var(--muted)">' + fmt(d['methode_application_dpe']) + '</div>'
+    + '</div>'
+    + '<div style="text-align:right;min-width:100px">'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-bottom:4px">N° DPE</div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--accent);font-family:var(--mono)">' + fmt(d['numero_dpe']) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:8px">Visité le</div>'
+    + '<div style="font-size:12px;font-weight:500;font-family:var(--mono)">' + fmt(d['date_visite_diagnostiqueur']) + '</div>'
+    + '<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:4px">Valide jusqu'au</div>'
+    + '<div style="font-size:12px;font-weight:500;font-family:var(--mono);color:#4ade80">' + fmt(d['date_fin_validite_dpe']) + '</div>'
+    + '</div></div></div>'
+
+    // ── KPIs principaux ──
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">'
+    + metricBox(fmtN(d['conso_5_usages_par_m2_ef']) + ' kWh', 'Conso EF / m²/an', '#22d3ee')
+    + metricBox(fmtN(d['conso_5_usages_par_m2_ep']) + ' kWh', 'Conso EP / m²/an', '#a78bfa')
+    + metricBox(fmtN(d['emission_ges_5_usages_par_m2']) + ' kg', 'CO₂ / m²/an', '#f87171')
+    + metricBox(fmtN(d['surface_habitable_logement']) + ' m²', 'Surface habitable', 'var(--text)')
+    + metricBox(fmtN(d['cout_total_5_usages']) + ' €', 'Coût total/an', '#f59e0b')
+    + metricBox(fmtN(d['ubat_w_par_m2_k']) + ' W/m²K', 'Ubat', 'var(--muted)')
+    + '</div>'
+
+    // ── GRILLE 3 colonnes ──
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">'
+
+    // Bloc logement
+    + block('🏠 Logement', '#1e3a5f', 
+        row('Type', d['type_batiment'])
+      + row('Période construction', d['periode_construction'])
+      + row('Nb niveaux', d['nombre_niveau_logement'])
+      + row('Hauteur plafond', d['hauteur_sous_plafond'] ? d['hauteur_sous_plafond'] + ' m' : '')
+      + row('Classe inertie', d['classe_inertie_batiment'])
+      + row('Zone climatique', d['zone_climatique'])
+      + row('Classe altitude', d['classe_altitude'])
+      + row('Traversant', d['logement_traversant'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc chauffage
+    + block('🔥 Chauffage', '#3b1c1c',
+        row('Énergie principale', d['type_energie_principale_chauffage'])
+      + row('Générateur', d['type_generateur_n1_installation_n1'])
+      + row('Configuration', d['configuration_installation_chauffage_n1'])
+      + row('Émetteur', d['type_emetteur_installation_chauffage_n1'] ? d['type_emetteur_installation_chauffage_n1'].split(' sur')[0] : '')
+      + row('Surface chauffée', d['surface_chauffee_installation_chauffage_n1'] ? d['surface_chauffee_installation_chauffage_n1'] + ' m²' : '')
+      + row('Conso EF ch.', d['conso_chauffage_ef'] ? fmtN(d['conso_chauffage_ef']) + ' kWh' : '')
+      + row('Coût chauffage', d['cout_chauffage'] ? fmtN(d['cout_chauffage']) + ' €/an' : '')
+      + row('Émissions GES ch.', d['emission_ges_chauffage'] ? fmtN(d['emission_ges_chauffage']) + ' kg CO₂' : '')
+    )
+
+    // Bloc ECS
+    + block('🚿 Eau Chaude Sanitaire', '#1c2e3b',
+        row('Énergie ECS', d['type_energie_principale_ecs'])
+      + row('Générateur ECS', d['type_generateur_n1_ecs_n1'])
+      + row('Configuration', d['configuration_installation_ecs_n1'])
+      + row('Type production', d['type_installation_ecs_n1'])
+      + row('Conso EF ECS', d['conso_ecs_ef'] ? fmtN(d['conso_ecs_ef']) + ' kWh' : '')
+      + row('Coût ECS', d['cout_ecs'] ? fmtN(d['cout_ecs']) + ' €/an' : '')
+      + row('Émissions GES ECS', d['emission_ges_ecs'] ? fmtN(d['emission_ges_ecs']) + ' kg CO₂' : '')
+      + row('Volume stockage', d['volume_stockage_generateur_n1_ecs_n1'] ? d['volume_stockage_generateur_n1_ecs_n1'] + ' L' : 'N/A')
+    )
+
+    // Bloc ventilation & éclairage
+    + block('💨 Ventilation & Auxiliaires', '#1c2b1c',
+        row('Type ventilation', d['type_ventilation'])
+      + row('Post 2012', d['ventilation_posterieure_2012'] ? 'Oui' : 'Non')
+      + row('Surface ventilée', d['surface_ventilee'] ? d['surface_ventilee'] + ' m²' : '')
+      + row('Conso éclairage EF', d['conso_eclairage_ef'] ? fmtN(d['conso_eclairage_ef']) + ' kWh' : '')
+      + row('Conso auxiliaires EF', d['conso_auxiliaires_ef'] ? fmtN(d['conso_auxiliaires_ef']) + ' kWh' : '')
+      + row('Coût éclairage', d['cout_eclairage'] ? fmtN(d['cout_eclairage']) + ' €/an' : '')
+      + row('Coût auxiliaires', d['cout_auxiliaires'] ? fmtN(d['cout_auxiliaires']) + ' €/an' : '')
+      + row('Émissions éclairage', d['emission_ges_eclairage'] ? fmtN(d['emission_ges_eclairage']) + ' kg CO₂' : '')
+    )
+
+    // Bloc isolation
+    + block('🧱 Isolation & Enveloppe', '#2a1f0a',
+        row('Murs', d['qualite_isolation_murs'])
+      + row('Menuiseries', d['qualite_isolation_menuiseries'])
+      + row('Plancher bas', d['qualite_isolation_plancher_bas'])
+      + row('Plancher haut', d['qualite_isolation_plancher_haut_comble_perdu'])
+      + row('Enveloppe globale', d['qualite_isolation_enveloppe'])
+      + row('Isolation toiture', d['isolation_toiture'] ? 'Oui' : 'Non')
+      + row('Brasseur air', d['presence_brasseur_air'] ? 'Oui' : 'Non')
+      + row('Protection solaire ext.', d['protection_solaire_exterieure'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc déperditions
+    + block('📉 Déperditions (%)', '#1f1f2e',
+        row('Murs', d['deperditions_murs'] ? d['deperditions_murs'] + ' %' : '')
+      + row('Baies vitrées', d['deperditions_baies_vitrees'] ? d['deperditions_baies_vitrees'] + ' %' : '')
+      + row('Planchers bas', d['deperditions_planchers_bas'] ? d['deperditions_planchers_bas'] + ' %' : '')
+      + row('Planchers hauts', d['deperditions_planchers_hauts'] ? d['deperditions_planchers_hauts'] + ' %' : '')
+      + row('Ponts thermiques', d['deperditions_ponts_thermiques'] ? d['deperditions_ponts_thermiques'] + ' %' : '')
+      + row('Portes', d['deperditions_portes'] ? d['deperditions_portes'] + ' %' : '')
+      + row('Renouvellement air', d['deperditions_renouvellement_air'] ? d['deperditions_renouvellement_air'] + ' %' : '')
+      + row('Enveloppe totale', d['deperditions_enveloppe'] ? d['deperditions_enveloppe'] + ' %' : '')
+    )
+
+    // Bloc apports & besoins
+    + block('☀️ Apports & Besoins', '#1a2a1a',
+        row('Besoin chauffage', d['besoin_chauffage'] ? fmtN(d['besoin_chauffage']) + ' kWh' : '')
+      + row('Besoin ECS', d['besoin_ecs'] ? fmtN(d['besoin_ecs']) + ' kWh' : '')
+      + row('Besoin refroid.', d['besoin_refroidissement'] ? fmtN(d['besoin_refroidissement']) + ' kWh' : '0')
+      + row('Apports solaires (chauffe)', d['apport_solaire_saison_chauffe'] ? fmtN(d['apport_solaire_saison_chauffe']) + ' kWh' : '')
+      + row('Apports internes (chauffe)', d['apport_interne_saison_chauffe'] ? fmtN(d['apport_interne_saison_chauffe']) + ' kWh' : '')
+      + row('Confort été', d['indicateur_confort_ete'])
+      + row('Prod. PV (kWhep/an)', d['production_electricite_pv_kwhep_par_an'] ? fmtN(d['production_electricite_pv_kwhep_par_an']) : '0')
+      + row('Logement traversant', d['logement_traversant'] ? 'Oui' : 'Non')
+    )
+
+    // Bloc émissions totales
+    + block('💨 Émissions GES totales', '#1f1515',
+        row('Total 5 usages', d['emission_ges_5_usages'] ? fmtN(d['emission_ges_5_usages']) + ' kg CO₂/an' : '')
+      + row('Par m²', d['emission_ges_5_usages_par_m2'] ? fmtN(d['emission_ges_5_usages_par_m2']) + ' kg/m²/an' : '')
+      + row('Chauffage', d['emission_ges_chauffage'] ? fmtN(d['emission_ges_chauffage']) + ' kg' : '')
+      + row('ECS', d['emission_ges_ecs'] ? fmtN(d['emission_ges_ecs']) + ' kg' : '')
+      + row('Éclairage', d['emission_ges_eclairage'] ? fmtN(d['emission_ges_eclairage']) + ' kg' : '')
+      + row('Auxiliaires', d['emission_ges_auxiliaires'] ? fmtN(d['emission_ges_auxiliaires']) + ' kg' : '')
+      + row('Refroid.', d['emission_ges_refroidissement'] ? fmtN(d['emission_ges_refroidissement']) + ' kg' : '0')
+      + row('Énergie n1', d['type_energie_n1'] || '')
+    )
+
+    + '</div>'  // fin grille 3 col
+
+    // ── Coûts détaillés ──
+    + '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+    + '<div style="background:#3b2a0a;padding:8px 14px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.7)">💰 Détail des coûts annuels</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--border)">'
+    + ['chauffage|Chauffage|#f59e0b','ecs|Eau chaude|#22d3ee','eclairage|Éclairage|#a78bfa','auxiliaires|Auxiliaires|#6b7280','total_5_usages|Total|#4ade80'].map(s => {
+        const [k, label, col] = s.split('|');
+        const v = d['cout_' + k];
+        return '<div style="background:var(--surface2);padding:16px 14px;text-align:center">'
+          + '<div style="font-size:20px;font-weight:700;color:' + col + ';font-family:var(--mono)">' + (v ? fmtN(v) + ' €' : '—') + '</div>'
+          + '<div style="font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.08em">' + label + '</div>'
+          + '</div>';
+      }).join('')
+    + '</div></div>'
+
+    // ── JSON brut ──
+    + '<details style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden">'
+    + '<summary style="padding:10px 16px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;cursor:pointer;font-family:var(--mono)">JSON brut · ' + Object.keys(d).length + ' champs</summary>'
+    + '<div class="raw" style="margin:0;border-radius:0;border:none;border-top:1px solid var(--border)">' + colorizeJson(JSON.stringify(d, null, 2)) + '</div>'
+    + '</details>'
+
+    + '</div>';
 }
+
+
 
 /* ─────────────────────────────────────────
    ONGLET 2 — STATS PAR VILLE
