@@ -134,6 +134,14 @@ tr:hover td{background:var(--surface2)}
 
 .addr-result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 20px;cursor:pointer;transition:border-color .2s}
 .addr-result-card:hover{border-color:rgba(74,222,128,.4)}
+/* FILTRES */
+.f-btn{font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 10px;border-radius:5px;cursor:pointer;border:2px solid transparent;opacity:.55;transition:opacity .15s,border-color .15s}
+.f-btn:hover{opacity:.8}
+.f-btn.active{opacity:1;border-color:white}
+.f-btn-sm{font-size:11px;font-weight:500;padding:4px 10px;border-radius:5px;cursor:pointer;border:1px solid var(--border2);color:var(--muted);background:none;font-family:var(--mono);text-align:left;transition:all .15s}
+.f-btn-sm:hover{border-color:var(--accent2);color:var(--accent2)}
+.f-btn-sm.active{border-color:var(--accent);color:var(--accent);background:rgba(74,222,128,.08)}
+
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -216,9 +224,11 @@ tr:hover td{background:var(--surface2)}
     <!-- PANEL : RECHERCHE ADRESSE -->
     <div class="panel" id="panel-addr">
       <h1>Recherche par adresse</h1>
-      <p class="subtitle">Retrouve les DPE d&#39;un logement par sa ville, sa rue et son numéro</p>
-      <div class="row">
-        <div class="field" style="max-width:200px">
+      <p class="subtitle">Retrouve et filtre les DPE par adresse, classement, période, énergie...</p>
+
+      <!-- Ligne adresse -->
+      <div class="row" style="margin-bottom:10px">
+        <div class="field" style="max-width:120px">
           <label>Numéro</label>
           <input type="text" id="inp-num" placeholder="ex : 30" onkeydown="if(event.key==='Enter')searchAddr()">
         </div>
@@ -226,21 +236,130 @@ tr:hover td{background:var(--surface2)}
           <label>Rue</label>
           <input type="text" id="inp-rue" placeholder="ex : Rue Jean Becaert" onkeydown="if(event.key==='Enter')searchAddr()">
         </div>
-        <div class="field" style="max-width:200px">
+        <div class="field" style="max-width:220px">
           <label>Ville ou code postal</label>
           <input type="text" id="inp-ville" placeholder="ex : Dunkerque ou 59140" onkeydown="if(event.key==='Enter')searchAddr()">
         </div>
-        <div class="field" style="max-width:120px">
+        <div class="field" style="max-width:100px">
           <label>Résultats</label>
           <select id="inp-addr-size">
-            <option value="5">5</option>
-            <option value="10" selected>10</option>
-            <option value="20">20</option>
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
             <option value="50">50</option>
+            <option value="100">100</option>
           </select>
         </div>
-        <button class="btn btn-go" id="btn-addr" onclick="searchAddr()">→ Rechercher</button>
+        <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
       </div>
+
+      <!-- Accordéon filtres -->
+      <details id="filter-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+        <summary style="padding:12px 18px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);display:flex;align-items:center;gap:8px;list-style:none">
+          <span>⚙</span> Filtres avancés
+          <span id="filter-badge" style="display:none;background:var(--accent);color:#0e0f11;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700">0</span>
+          <span style="margin-left:auto;color:var(--muted)">▼</span>
+        </summary>
+        <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--border)">
+
+          <!-- Étiquette DPE -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette DPE</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-dpe">
+              <button class="f-btn" data-group="etiq_dpe" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Étiquette GES -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette GES</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-ges">
+              <button class="f-btn" data-group="etiq_ges" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Période construction -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Période construction</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-periode">
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Avant 1948" onclick="toggleFilter(this)">Avant 1948</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1948-1974" onclick="toggleFilter(this)">1948-1974</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1975-1981" onclick="toggleFilter(this)">1975-1981</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1982-1989" onclick="toggleFilter(this)">1982-1989</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1990-2000" onclick="toggleFilter(this)">1990-2000</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="2001-2012" onclick="toggleFilter(this)">2001-2012</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Après 2012" onclick="toggleFilter(this)">Après 2012</button>
+            </div>
+          </div>
+
+          <!-- Colonne droite : énergie + dates + surface -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Énergie chauffage -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Énergie chauffage</div>
+              <div style="display:flex;flex-direction:column;gap:4px" id="f-energie">
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Gaz naturel" onclick="toggleFilter(this)">🔵 Gaz naturel</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Électricité" onclick="toggleFilter(this)">⚡ Électricité</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Fioul domestique" onclick="toggleFilter(this)">🟤 Fioul</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Bois" onclick="toggleFilter(this)">🪵 Bois</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Réseau de chaleur" onclick="toggleFilter(this)">🌡 Réseau chaleur</button>
+              </div>
+            </div>
+
+            <!-- Plage de dates du DPE -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Date établissement DPE</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="date" id="f-date-min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="date" id="f-date-max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+            <!-- Surface -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Surface (m²)</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="number" id="f-surf-min" placeholder="Min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="number" id="f-surf-max" placeholder="Max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Pied filtres : tri + reset -->
+        <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)">Trier par</div>
+          <select id="f-sort" style="font-size:12px;padding:5px 10px;flex:none;width:auto" onchange="updateFilterBadge()">
+            <option value="-date_etablissement_dpe">Date DPE (récent)</option>
+            <option value="date_etablissement_dpe">Date DPE (ancien)</option>
+            <option value="etiquette_dpe">Étiquette (A→G)</option>
+            <option value="-etiquette_dpe">Étiquette (G→A)</option>
+            <option value="conso_5_usages_par_m2_ef">Conso EF (croissant)</option>
+            <option value="-conso_5_usages_par_m2_ef">Conso EF (décroissant)</option>
+            <option value="cout_total_5_usages">Coût annuel (croissant)</option>
+            <option value="-cout_total_5_usages">Coût annuel (décroissant)</option>
+            <option value="surface_habitable_logement">Surface (croissante)</option>
+            <option value="-surface_habitable_logement">Surface (décroissante)</option>
+          </select>
+          <button onclick="resetFilters()" style="font-family:var(--mono);font-size:11px;padding:5px 12px;background:none;border:1px solid var(--border2);color:var(--muted);border-radius:var(--r2);cursor:pointer;margin-left:auto">✕ Réinitialiser les filtres</button>
+        </div>
+      </details>
+
       <div class="url-bar" id="url-addr">—</div>
       <div class="status" id="st-addr"></div>
       <div id="result-addr"></div>
@@ -799,26 +918,115 @@ function colorizeJson(str) {
 /* ─────────────────────────────────────────
    ONGLET ADRESSE
 ───────────────────────────────────────── */
+// ── État des filtres ──
+const activeFilters = { etiq_dpe: new Set(), etiq_ges: new Set(), periode: new Set(), energie: new Set() };
+
+function toggleFilter(btn) {
+  const group = btn.dataset.group;
+  const val   = btn.dataset.val;
+  if (activeFilters[group].has(val)) {
+    activeFilters[group].delete(val);
+    btn.classList.remove('active');
+  } else {
+    activeFilters[group].add(val);
+    btn.classList.add('active');
+  }
+  updateFilterBadge();
+}
+
+function updateFilterBadge() {
+  let count = 0;
+  Object.values(activeFilters).forEach(s => count += s.size);
+  const dMin = document.getElementById('f-date-min').value;
+  const dMax = document.getElementById('f-date-max').value;
+  const sMin = document.getElementById('f-surf-min').value;
+  const sMax = document.getElementById('f-surf-max').value;
+  if (dMin) count++;
+  if (dMax) count++;
+  if (sMin) count++;
+  if (sMax) count++;
+  const badge = document.getElementById('filter-badge');
+  if (count > 0) { badge.textContent = count; badge.style.display = 'inline-block'; }
+  else { badge.style.display = 'none'; }
+}
+
+function resetFilters() {
+  Object.keys(activeFilters).forEach(g => activeFilters[g].clear());
+  document.querySelectorAll('.f-btn, .f-btn-sm').forEach(b => b.classList.remove('active'));
+  document.getElementById('f-date-min').value = '';
+  document.getElementById('f-date-max').value = '';
+  document.getElementById('f-surf-min').value = '';
+  document.getElementById('f-surf-max').value = '';
+  document.getElementById('f-sort').value = '-date_etablissement_dpe';
+  updateFilterBadge();
+}
+
+function buildQsFilters() {
+  // Construit les filtres qs pour l&#39;API ADEME
+  const parts = [];
+
+  if (activeFilters.etiq_dpe.size > 0) {
+    const vals = [...activeFilters.etiq_dpe].map(v => 'etiquette_dpe:' + v).join(' OR ');
+    parts.push(activeFilters.etiq_dpe.size === 1 ? 'etiquette_dpe:' + [...activeFilters.etiq_dpe][0] : '(' + vals + ')');
+  }
+  if (activeFilters.etiq_ges.size > 0) {
+    const vals = [...activeFilters.etiq_ges].map(v => 'etiquette_ges:' + v).join(' OR ');
+    parts.push(activeFilters.etiq_ges.size === 1 ? 'etiquette_ges:' + [...activeFilters.etiq_ges][0] : '(' + vals + ')');
+  }
+  if (activeFilters.periode.size > 0) {
+    const vals = [...activeFilters.periode].map(v => 'periode_construction:"' + v + '"').join(' OR ');
+    parts.push(activeFilters.periode.size === 1 ? 'periode_construction:"' + [...activeFilters.periode][0] + '"' : '(' + vals + ')');
+  }
+  if (activeFilters.energie.size > 0) {
+    const vals = [...activeFilters.energie].map(v => 'type_energie_principale_chauffage:"' + v + '"').join(' OR ');
+    parts.push(activeFilters.energie.size === 1 ? 'type_energie_principale_chauffage:"' + [...activeFilters.energie][0] + '"' : '(' + vals + ')');
+  }
+
+  // Dates
+  const dMin = document.getElementById('f-date-min').value;
+  const dMax = document.getElementById('f-date-max').value;
+  if (dMin || dMax) {
+    const from = dMin || '*';
+    const to   = dMax || '*';
+    parts.push('date_etablissement_dpe:[' + from + ' TO ' + to + ']');
+  }
+
+  // Surface
+  const sMin = document.getElementById('f-surf-min').value;
+  const sMax = document.getElementById('f-surf-max').value;
+  if (sMin || sMax) {
+    const from = sMin || '*';
+    const to   = sMax || '*';
+    parts.push('surface_habitable_logement:[' + from + ' TO ' + to + ']');
+  }
+
+  return parts.join(' AND ');
+}
+
 async function searchAddr() {
   const num   = document.getElementById('inp-num').value.trim();
   const rue   = document.getElementById('inp-rue').value.trim();
   const ville = document.getElementById('inp-ville').value.trim();
   const size  = document.getElementById('inp-addr-size').value;
+  const sort  = document.getElementById('f-sort').value;
 
-  if (!rue && !ville) {
-    setStatus('addr', 'err', '⚠ Renseignez au moins une rue ou une ville.');
+  if (!rue && !ville && !num) {
+    setStatus('addr', 'err', '⚠ Renseignez au moins une ville ou une rue.');
     return;
   }
 
-  // Construire la requête : concaténation des champs non vides
-  const parts = [num, rue, ville].filter(Boolean).join(' ');
-  const params = { q: parts, size: size };
+  const q = [num, rue, ville].filter(Boolean).join(' ');
+  const params = { q, size, sort };
+
+  const qs = buildQsFilters();
+  if (qs) params.qs = qs;
+
   const url = buildUrl(params);
   document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
 
   const data = await apiFetch(url, 'btn-addr', 'addr');
   if (!data) return;
-  renderAddrResults(data, parts);
+  renderAddrResults(data, q);
 }
 
 function renderAddrResults(data, query) {
