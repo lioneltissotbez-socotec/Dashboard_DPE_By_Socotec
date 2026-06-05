@@ -262,7 +262,7 @@ tr:hover td{background:var(--surface2)}
           <span id="filter-badge" style="display:none;background:var(--accent);color:#0e0f11;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700">0</span>
           <span style="margin-left:auto;color:var(--muted)">▼</span>
         </summary>
-        <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;border-top:1px solid var(--border)">
+        <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;border-top:1px solid var(--border)">
 
           <!-- Étiquette DPE -->
           <div>
@@ -303,6 +303,16 @@ tr:hover td{background:var(--surface2)}
               <button class="f-btn f-btn-sm" data-group="periode" data-val="1990-2000" onclick="toggleFilter(this)">1990-2000</button>
               <button class="f-btn f-btn-sm" data-group="periode" data-val="2001-2012" onclick="toggleFilter(this)">2001-2012</button>
               <button class="f-btn f-btn-sm" data-group="periode" data-val="Après 2012" onclick="toggleFilter(this)">Après 2012</button>
+            </div>
+          </div>
+
+          <!-- Type habitation -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Type habitation</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-type-hab">
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="appartement" onclick="toggleFilter(this)">🏢 Appartement</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="maison" onclick="toggleFilter(this)">🏠 Maison</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="immeuble" onclick="toggleFilter(this)">🏬 Immeuble</button>
             </div>
           </div>
 
@@ -922,7 +932,7 @@ function colorizeJson(str) {
    ONGLET ADRESSE
 ───────────────────────────────────────── */
 // ── État des filtres ──
-const activeFilters = { etiq_dpe: new Set(), etiq_ges: new Set(), periode: new Set(), energie: new Set() };
+const activeFilters = { etiq_dpe: new Set(), etiq_ges: new Set(), periode: new Set(), energie: new Set(), type_hab: new Set() };
 
 function toggleFilter(btn) {
   const group = btn.dataset.group;
@@ -983,6 +993,10 @@ function buildQsFilters() {
   if (activeFilters.energie.size > 0) {
     const vals = [...activeFilters.energie].map(v => 'type_energie_principale_chauffage:"' + v + '"').join(' OR ');
     parts.push(activeFilters.energie.size === 1 ? 'type_energie_principale_chauffage:"' + [...activeFilters.energie][0] + '"' : '(' + vals + ')');
+  }
+  if (activeFilters.type_hab.size > 0) {
+    const vals = [...activeFilters.type_hab].map(v => 'type_batiment:' + v).join(' OR ');
+    parts.push(activeFilters.type_hab.size === 1 ? 'type_batiment:' + [...activeFilters.type_hab][0] : '(' + vals + ')');
   }
 
   // Dates
@@ -1174,7 +1188,6 @@ function renderAddrResults(data, query) {
 
 function loadDpeFromAddr(jsonStr) {
   const d = JSON.parse(jsonStr);
-  // Basculer sur l'onglet recherche et afficher la fiche complète
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('panel-search').classList.add('active');
@@ -1183,6 +1196,23 @@ function loadDpeFromAddr(jsonStr) {
   document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>Chargé depuis la recherche adresse</span>';
   window.scrollTo(0, 0);
 }
+
+function loadDpeFromAddrB64(b64) {
+  try {
+    const json = decodeURIComponent(escape(atob(b64)));
+    loadDpeFromAddr(json);
+  } catch(e) {
+    console.error('Erreur B64:', e);
+  }
+}
+
+// Exposer au scope global window pour les onclick générés via innerHTML
+window.loadDpeFromAddr    = loadDpeFromAddr;
+window.loadDpeFromAddrB64 = loadDpeFromAddrB64;
+window.toggleFilter       = toggleFilter;
+window.resetFilters       = resetFilters;
+window.updateFilterBadge  = updateFilterBadge;
+window.searchAddr         = searchAddr;
 
 /* INIT */
 buildChips();
