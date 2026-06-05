@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 /* LAYOUT */
 .shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
 .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;position:fixed;width:220px;height:100vh;overflow-y:auto}
-.main{margin-left:220px;padding:32px;max-width:1100px}
+.main{margin-left:220px;padding:32px;max-width:960px;width:100%;overflow-x:hidden}
 
 /* SIDEBAR */
 .logo{padding:0 20px 28px;border-bottom:1px solid var(--border);margin-bottom:16px}
@@ -67,7 +67,7 @@ select option{background:var(--surface2)}
 .btn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--surface2)}
 
 /* URL BAR */
-.url-bar{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;color:var(--muted);word-break:break-all;margin-bottom:16px}
+.url-bar{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;color:var(--muted);word-break:break-all;margin-bottom:16px;overflow:hidden;max-height:60px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .url-bar span{color:var(--accent2)}
 
 /* STATUS */
@@ -219,7 +219,7 @@ tr:hover td{background:var(--surface2)}
       <div class="field" style="margin-bottom:12px">
         <label>Paramètres (après /lines?)</label>
         <input type="text" id="inp-raw"
-          value="q=75001&q_fields=Code_postal_ban&select=N°_DPE,Etiquette_DPE,Surface_habitable_logement,Nom_commune_brut,Type_bâtiment&size=10"
+          value="q=75001&select=numero_dpe,etiquette_dpe,surface_habitable_logement,nom_commune_ban,type_batiment&size=10"
           oninput="updateRawUrl()">
       </div>
       <div class="url-bar" id="url-raw">—</div>
@@ -270,11 +270,11 @@ function displayUrl(params) {
 }
 
 const RAW_EXAMPLES = [
-  { label: 'Paris 1er arrdt',   q: 'q=75001&q_fields=Code_postal_ban&select=N°_DPE,Etiquette_DPE,Surface_habitable_logement,Nom_commune_brut,Type_bâtiment&size=10' },
-  { label: 'Passoires G récentes', q: 'qs=Etiquette_DPE:G&select=N°_DPE,Nom_commune_brut,Code_postal_ban,Surface_habitable_logement,Date_établissement_DPE&size=10&sort=-Date_établissement_DPE' },
-  { label: 'Dunkerque 59140',   q: 'qs=Code_postal_ban:59140&select=N°_DPE,Etiquette_DPE,Etiquette_GES,Conso_5_usages_é_finale,Surface_habitable_logement,Type_énergie_principale_chauffage&size=10' },
-  { label: '5 derniers DPE',    q: 'select=N°_DPE,Date_établissement_DPE,Etiquette_DPE,Nom_commune_brut,Prénom_diagnostiqueur,Nom_diagnostiqueur&sort=-Date_établissement_DPE&size=5' },
-  { label: 'Gros logements >150m²', q: 'qs=Surface_habitable_logement:[150 TO *]&select=N°_DPE,Surface_habitable_logement,Etiquette_DPE,Nom_commune_brut,Code_postal_ban&size=10&sort=-Surface_habitable_logement' },
+  { label: 'Paris 1er arrdt',   q: 'q=75001&select=numero_dpe,etiquette_dpe,surface_habitable_logement,nom_commune_ban,type_batiment&size=10' },
+  { label: 'Passoires G récentes', q: 'qs=etiquette_dpe:G&select=numero_dpe,nom_commune_ban,code_postal_ban,surface_habitable_logement,date_etablissement_dpe&size=10&sort=-date_etablissement_dpe' },
+  { label: 'Dunkerque 59140',   q: 'qs=code_postal_ban:59140&select=numero_dpe,etiquette_dpe,etiquette_ges,conso_5_usages_ef,surface_habitable_logement,type_energie_principale_chauffage&size=10' },
+  { label: '5 derniers DPE',    q: 'select=numero_dpe,date_etablissement_dpe,etiquette_dpe,nom_commune_ban&sort=-date_etablissement_dpe&size=5' },
+  { label: 'Gros logements >150m²', q: 'qs=surface_habitable_logement:[150 TO *]&select=numero_dpe,surface_habitable_logement,etiquette_dpe,nom_commune_ban,code_postal_ban&size=10&sort=-surface_habitable_logement' },
 ];
 
 /* ── NAV ── */
@@ -364,16 +364,17 @@ async function searchDpe() {
 }
 
 function renderDpeCard(d, total) {
-  const eDpe = d['Etiquette_DPE'] || '';
-  const eGes = d['Etiquette_GES'] || '';
+  // Vrais noms de champs confirmés par l'API dpe03existant
+  const eDpe = d['etiquette_dpe'] || '';
+  const eGes = d['etiquette_ges'] || '';
   return `
   <div class="card">
-    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px">
+    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px;flex-wrap:wrap">
       <div>${etiq(eDpe, true)}</div>
-      <div style="flex:1">
-        <div style="font-size:16px;font-weight:700;margin-bottom:2px">${fmt(d['Adresse_brut'])}</div>
-        <div style="color:var(--muted);font-family:var(--mono);font-size:12px">${fmt(d['Code_postal_ban'])} ${fmt(d['Nom_commune_brut'])}</div>
-        <div style="color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:4px">N° DPE · ${fmt(d['N°_DPE'])}</div>
+      <div style="flex:1;min-width:180px">
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px">${fmt(d['adresse_brut'])}</div>
+        <div style="color:var(--muted);font-family:var(--mono);font-size:12px">${fmt(d['code_postal_ban'])} ${fmt(d['nom_commune_ban'])}</div>
+        <div style="color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:4px">N° DPE · ${fmt(d['numero_dpe'])}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">RÉSULTATS API</div>
@@ -384,46 +385,72 @@ function renderDpeCard(d, total) {
     <div class="metrics">
       <div class="metric accent"><div class="v">${etiq(eDpe)}</div><div class="l">Étiquette énergie</div></div>
       <div class="metric"><div class="v">${etiq(eGes)}</div><div class="l">Étiquette GES</div></div>
-      <div class="metric cyan"><div class="v">${fmtN(d['Conso_5_usages_é_finale'])}</div><div class="l">kWh énergie finale/an</div></div>
-      <div class="metric amber"><div class="v">${fmtN(d['Conso_5_usages_m2'])}</div><div class="l">kWh/m²/an conv.</div></div>
-      <div class="metric"><div class="v">${fmtN(d['Emission_GES_5_usages_m2'])}</div><div class="l">kg CO₂/m²/an</div></div>
-      <div class="metric"><div class="v">${fmtN(d['Surface_habitable_logement'])} m²</div><div class="l">Surface habitable</div></div>
+      <div class="metric cyan"><div class="v">${fmtN(d['conso_5_usages_ef'])}</div><div class="l">kWh énergie finale/an</div></div>
+      <div class="metric amber"><div class="v">${fmtN(d['conso_5_usages_par_m2_ef'])}</div><div class="l">kWh/m²/an conv.</div></div>
+      <div class="metric"><div class="v">${fmtN(d['emission_ges_5_usages_par_m2'])}</div><div class="l">kg CO₂/m²/an</div></div>
+      <div class="metric"><div class="v">${fmtN(d['surface_habitable_logement'])} m²</div><div class="l">Surface habitable</div></div>
     </div>
 
     <div class="sep"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap">
       <div>
         <div class="card-title">Logement</div>
         <div class="kv">
-          <span class="k">Type</span><span class="val">${fmt(d['Type_bâtiment'])}</span>
-          <span class="k">Construction</span><span class="val">${fmt(d['Période_construction'])}</span>
-          <span class="k">Niveaux</span><span class="val">${fmt(d['Nombre_niveau_logement'])}</span>
-          <span class="k">Haut. plafond</span><span class="val">${fmt(d['Hauteur_sous-plafond'])} m</span>
+          <span class="k">Type</span><span class="val">${fmt(d['type_batiment'])}</span>
+          <span class="k">Construction</span><span class="val">${fmt(d['periode_construction'])}</span>
+          <span class="k">Niveaux</span><span class="val">${fmt(d['nombre_niveau_logement'])}</span>
+          <span class="k">Haut. plafond</span><span class="val">${fmt(d['hauteur_sous_plafond'])} m</span>
+          <span class="k">Zone climatique</span><span class="val">${fmt(d['zone_climatique'])}</span>
+          <span class="k">Inertie</span><span class="val">${fmt(d['classe_inertie_batiment'])}</span>
         </div>
       </div>
       <div>
         <div class="card-title">Équipements</div>
         <div class="kv">
-          <span class="k">Chauffage</span><span class="val">${fmt(d['Type_énergie_principale_chauffage'])}</span>
-          <span class="k">Installation</span><span class="val">${fmt(d['Type_installation_chauffage'])}</span>
-          <span class="k">ECS</span><span class="val">${fmt(d['Type_énergie_principale_ECS'])}</span>
-          <span class="k">Ventilation</span><span class="val">${fmt(d['Type_ventilation'])}</span>
+          <span class="k">Chauffage</span><span class="val">${fmt(d['type_energie_principale_chauffage'])}</span>
+          <span class="k">Générateur</span><span class="val">${fmt(d['type_generateur_n1_installation_n1'])}</span>
+          <span class="k">ECS</span><span class="val">${fmt(d['type_energie_principale_ecs'])}</span>
+          <span class="k">Ventilation</span><span class="val">${fmt(d['type_ventilation'])}</span>
+          <span class="k">Émetteur</span><span class="val">${fmt(d['type_emetteur_installation_chauffage_n1'])?.split(' sur')[0]}</span>
         </div>
       </div>
     </div>
 
     <div class="sep"></div>
+    <div class="card-title">Coûts annuels estimés</div>
+    <div class="metrics">
+      <div class="metric"><div class="v">${fmtN(d['cout_chauffage'])} €</div><div class="l">Chauffage</div></div>
+      <div class="metric"><div class="v">${fmtN(d['cout_ecs'])} €</div><div class="l">Eau chaude</div></div>
+      <div class="metric"><div class="v">${fmtN(d['cout_eclairage'])} €</div><div class="l">Éclairage</div></div>
+      <div class="metric"><div class="v">${fmtN(d['cout_auxiliaires'])} €</div><div class="l">Auxiliaires</div></div>
+      <div class="metric amber"><div class="v">${fmtN(d['cout_total_5_usages'])} €</div><div class="l">Total annuel</div></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="card-title">Isolation & qualité enveloppe</div>
+    <div class="kv">
+      <span class="k">Murs</span><span class="val">${fmt(d['qualite_isolation_murs'])}</span>
+      <span class="k">Menuiseries</span><span class="val">${fmt(d['qualite_isolation_menuiseries'])}</span>
+      <span class="k">Plancher bas</span><span class="val">${fmt(d['qualite_isolation_plancher_bas'])}</span>
+      <span class="k">Plancher haut</span><span class="val">${fmt(d['qualite_isolation_plancher_haut_comble_perdu'])}</span>
+      <span class="k">Enveloppe globale</span><span class="val">${fmt(d['qualite_isolation_enveloppe'])}</span>
+      <span class="k">Confort été</span><span class="val">${fmt(d['indicateur_confort_ete'])}</span>
+    </div>
+
+    <div class="sep"></div>
     <div class="card-title">Diagnostiqueur & dates</div>
     <div class="kv">
-      <span class="k">Diagnostiqueur</span><span class="val">${fmt(d['Prénom_diagnostiqueur'])} ${fmt(d['Nom_diagnostiqueur'])}</span>
-      <span class="k">Date visite</span><span class="val">${fmt(d['Date_visite_diagnostiqueur'])}</span>
-      <span class="k">Date établissement</span><span class="val">${fmt(d['Date_établissement_DPE'])}</span>
+      <span class="k">Méthode DPE</span><span class="val">${fmt(d['methode_application_dpe'])}</span>
+      <span class="k">Date visite</span><span class="val">${fmt(d['date_visite_diagnostiqueur'])}</span>
+      <span class="k">Date établissement</span><span class="val">${fmt(d['date_etablissement_dpe'])}</span>
+      <span class="k">Date fin validité</span><span class="val">${fmt(d['date_fin_validite_dpe'])}</span>
+      <span class="k">N° DPE</span><span class="val" style="font-family:var(--font-mono);font-size:12px">${fmt(d['numero_dpe'])}</span>
     </div>
 
     <div class="sep"></div>
     <div class="card-title">JSON brut · réponse complète</div>
-    <div class="raw" id="json-out">${colorizeJson(JSON.stringify(d, null, 2))}</div>
-  </div>`;
+    <div class="raw">${colorizeJson(JSON.stringify(d, null, 2))}</div>
+  </div>\`;
 }
 
 /* ─────────────────────────────────────────
@@ -434,8 +461,9 @@ async function loadStats() {
   const size = document.getElementById('inp-size').value;
   if (!cp) return;
   // Champs sans accents dans les noms pour éviter l'erreur 400
-  const fields = 'Etiquette_DPE,Etiquette_GES,Surface_habitable_logement,Type_batiment,Conso_5_usages_ef,Emission_GES_5_usages_m2,Type_energie_principale_chauffage,Periode_construction,Nom_commune_brut';
-  const params = { q: cp, size: size };
+  // Vrais noms de champs confirmés par l'API
+  const fields = 'etiquette_dpe,etiquette_ges,surface_habitable_logement,type_batiment,conso_5_usages_ef,emission_ges_5_usages_par_m2,type_energie_principale_chauffage,periode_construction,nom_commune_ban,cout_total_5_usages';
+  const params = { q: cp, select: fields, size: size };
   const url = buildUrl(params);
   document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
   const data = await apiFetch(url, 'btn-stats', 'stats');
@@ -448,24 +476,24 @@ function renderStats(data, cp) {
   const n = res.length;
   if (!n) { document.getElementById('result-stats').innerHTML = '<div class="card" style="color:var(--muted)">Aucun résultat pour ce code postal.</div>'; return; }
 
-  const ville = res[0]['Nom_commune_brut'] || cp;
+  const ville = res[0]['nom_commune_ban'] || cp;
   const EC = {};
   ['A','B','C','D','E','F','G'].forEach(e => EC[e] = 0);
   let totConso=0, nConso=0, totSurf=0, nSurf=0, totGes=0, nGes=0;
   const enrg = {}, types = {};
 
   res.forEach(r => {
-    const e = r['Etiquette_DPE'];
+    const e = r['etiquette_dpe'];
     if (e && EC[e] !== undefined) EC[e]++;
-    const c = parseFloat(r['Conso_5_usages_é_finale']);
+    const c = parseFloat(r['conso_5_usages_ef']);
     if (!isNaN(c)) { totConso += c; nConso++; }
-    const s = parseFloat(r['Surface_habitable_logement']);
+    const s = parseFloat(r['surface_habitable_logement']);
     if (!isNaN(s)) { totSurf += s; nSurf++; }
-    const g = parseFloat(r['Emission_GES_5_usages_m2']);
+    const g = parseFloat(r['emission_ges_5_usages_par_m2']);
     if (!isNaN(g)) { totGes += g; nGes++; }
-    const en = r['Type_énergie_principale_chauffage'] || 'Non renseigné';
+    const en = r['type_energie_principale_chauffage'] || 'Non renseigné';
     enrg[en] = (enrg[en] || 0) + 1;
-    const ty = r['Type_bâtiment'] || 'Non renseigné';
+    const ty = r['type_batiment'] || 'Non renseigné';
     types[ty] = (types[ty] || 0) + 1;
   });
 
