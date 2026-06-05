@@ -1,232 +1,560 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard DPE - Patrimoine Immobilier</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADEME DPE Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0e0f11;
+  --surface: #16181c;
+  --surface2: #1e2026;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --accent: #4ade80;
+  --accent2: #22d3ee;
+  --accent3: #f59e0b;
+  --danger: #ef4444;
+  --font: 'Syne', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --r: 10px;
+  --r2: 6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:14px;line-height:1.6}
+::selection{background:#4ade8033}
+
+/* LAYOUT */
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:24px 0;display:flex;flex-direction:column;position:fixed;width:220px;height:100vh;overflow-y:auto}
+.main{margin-left:220px;padding:32px;max-width:1100px}
+
+/* SIDEBAR */
+.logo{padding:0 20px 28px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.logo-mark{font-size:20px;font-weight:700;color:var(--accent);letter-spacing:-0.5px}
+.logo-sub{font-size:10px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:2px;font-family:var(--mono)}
+.nav-section{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;padding:0 20px;margin:16px 0 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all .15s;border-left:2px solid transparent}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(74,222,128,0.06)}
+.nav-item .ico{width:16px;text-align:center;font-size:15px}
+.api-info{margin-top:auto;padding:16px 20px 0;border-top:1px solid var(--border)}
+.api-pill{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:var(--mono)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* PANELS */
+.panel{display:none}.panel.active{display:block}
+h1{font-size:24px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px}
+.subtitle{color:var(--muted);font-size:13px;margin-bottom:28px}
+
+/* FORM ELEMENTS */
+.row{display:flex;gap:10px;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px}
+label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono)}
+input,select{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r2);color:var(--text);font-family:var(--mono);font-size:13px;padding:10px 14px;outline:none;transition:border-color .15s;width:100%}
+input:focus,select:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+.btn{font-family:var(--font);font-size:13px;font-weight:600;padding:10px 20px;border-radius:var(--r2);cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:none;transition:all .15s;white-space:nowrap;letter-spacing:.01em}
+.btn-go{background:var(--accent);color:#0e0f11}
+.btn-go:hover{background:#6cf09a}
+.btn-go:disabled{background:var(--surface2);color:var(--muted);cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border2)}
+.btn-ghost:hover{border-color:var(--border2);color:var(--text);background:var(--surface2)}
+
+/* URL BAR */
+.url-bar{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:10px 14px;color:var(--muted);word-break:break-all;margin-bottom:16px}
+.url-bar span{color:var(--accent2)}
+
+/* STATUS */
+.status{padding:12px 16px;border-radius:var(--r2);font-size:13px;display:none;align-items:center;gap:10px;margin-bottom:16px;font-family:var(--mono)}
+.status.err{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#fca5a5;display:flex}
+.status.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:var(--accent);display:flex}
+.status.info{background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:var(--accent2);display:flex}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-bottom:16px}
+.card-title{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-family:var(--mono);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+
+/* METRICS GRID */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.metric{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.metric .v{font-size:26px;font-weight:700;color:var(--text);line-height:1;margin-bottom:4px;font-family:var(--mono)}
+.metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.metric.accent .v{color:var(--accent)}
+.metric.cyan .v{color:var(--accent2)}
+.metric.amber .v{color:var(--accent3)}
+
+/* ETIQUETTES */
+.etiq{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:5px;font-size:15px;font-weight:700;font-family:var(--mono)}
+.A{background:#1a5c3a;color:#4ade80}.B{background:#2d5e16;color:#86efac}
+.C{background:#4d6b0f;color:#bef264}.D{background:#7c5a08;color:#fde68a}
+.E{background:#7c3a08;color:#fdba74}.F{background:#7c1212;color:#fca5a5}
+.G{background:#500d0d;color:#ef4444}
+.etiq-lg{width:44px;height:44px;font-size:22px;border-radius:8px}
+
+/* KV TABLE */
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 20px;font-size:13px}
+.kv .k{color:var(--muted);white-space:nowrap;font-family:var(--mono);font-size:12px}
+.kv .val{color:var(--text);font-weight:500}
+
+/* BAR CHART */
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.bar-label{width:32px;text-align:center}
+.bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.bar-count{font-family:var(--mono);font-size:12px;color:var(--muted);width:80px;text-align:right}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;background:var(--surface2);border-bottom:1px solid var(--border);font-family:var(--mono);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--mono);white-space:nowrap;overflow:hidden;max-width:180px;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2)}
+
+/* RAW JSON */
+.raw{font-family:var(--mono);font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;overflow:auto;max-height:320px;line-height:1.7;white-space:pre}
+.json-key{color:var(--accent2)}.json-str{color:#a3e635}.json-num{color:var(--accent3)}.json-null{color:var(--muted)}
+
+/* CHIPS */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.chip{font-size:11px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);cursor:pointer;color:var(--muted);background:none;font-family:var(--mono);transition:all .12s}
+.chip:hover{border-color:var(--accent2);color:var(--accent2)}
+
+/* DIVIDER */
+.sep{height:1px;background:var(--border);margin:16px 0}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
 </head>
 <body>
-    <nav class="navbar navbar-dark bg-primary">
-        <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">
-                <i class="bi bi-building"></i> Dashboard DPE Patrimoine
-            </span>
-            <span class="text-white" id="clientName"></span>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">DPE Explorer</div>
+      <div class="logo-sub">API ADEME · Open Data</div>
+    </div>
+    <div class="nav-section">Recherche</div>
+    <div class="nav-item active" onclick="show('search')">
+      <span class="ico">🔍</span> Recherche par N° DPE
+    </div>
+    <div class="nav-section">Analyse</div>
+    <div class="nav-item" onclick="show('stats')">
+      <span class="ico">📊</span> Stats par ville
+    </div>
+    <div class="nav-item" onclick="show('raw')">
+      <span class="ico">⌨️</span> Requête libre
+    </div>
+    <div class="api-info">
+      <div class="api-pill">
+        <div class="pulse"></div>
+        API ADEME live
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)">data.ademe.fr · 15M DPE</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- PANEL : RECHERCHE DPE -->
+    <div class="panel active" id="panel-search">
+      <h1>Recherche DPE</h1>
+      <p class="subtitle">Retrouve un diagnostic à partir de son numéro ADEME officiel</p>
+      <div class="row">
+        <div class="field">
+          <label>Numéro DPE (N°ADEME)</label>
+          <input type="text" id="inp-dpe" value="2559E3512532V" placeholder="ex : 2559E3512532V"
+                 onkeydown="if(event.key==='Enter')searchDpe()">
         </div>
-    </nav>
-
-    <div class="container-fluid mt-4">
-        <!-- Section Import des adresses -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5><i class="bi bi-upload"></i> Import du patrimoine</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="clientId" class="form-label">Identifiant Client</label>
-                                <input type="text" class="form-control" id="clientId" placeholder="Ex: BAILLEUR_001">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="clientNameInput" class="form-label">Nom du Client</label>
-                                <input type="text" class="form-control" id="clientNameInput" placeholder="Ex: Habitat Social Paris">
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <label for="adressesList" class="form-label">
-                                Liste des adresses (une par ligne ou format tableau Excel)
-                            </label>
-                            <textarea class="form-control" id="adressesList" rows="6" 
-                                placeholder="Exemple :&#10;12 rue Victor Hugo 75001 Paris&#10;45 avenue Foch 75008 Paris&#10;8 boulevard Haussmann 75009 Paris&#10;&#10;Ou collez directement depuis Excel (adresse | code postal | ville)"></textarea>
-                        </div>
-                        <div class="mt-3">
-                            <button class="btn btn-primary btn-lg" id="analyseBtn">
-                                <i class="bi bi-search"></i> Analyser le patrimoine
-                            </button>
-                            <button class="btn btn-secondary btn-lg" id="exempleBtn">
-                                <i class="bi bi-file-earmark-text"></i> Charger exemple
-                            </button>
-                        </div>
-                        <div class="mt-3">
-                            <div class="progress" style="display:none;" id="progressBar">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                     role="progressbar" style="width: 0%"></div>
-                            </div>
-                            <div id="statusMessage" class="alert mt-2" style="display:none;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section Résultats -->
-        <div id="resultsSection" style="display:none;">
-            <!-- KPIs principaux -->
-            <div class="row mb-4">
-                <div class="col-md-3">
-                    <div class="card text-center kpi-card">
-                        <div class="card-body">
-                            <h6 class="text-muted">Logements analysés</h6>
-                            <h2 class="text-primary" id="kpiLogements">-</h2>
-                            <small class="text-muted">diagnostics trouvés</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center kpi-card">
-                        <div class="card-body">
-                            <h6 class="text-muted">Surface totale</h6>
-                            <h2 class="text-success" id="kpiSurface">-</h2>
-                            <small class="text-muted">m² habitables</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center kpi-card">
-                        <div class="card-body">
-                            <h6 class="text-muted">Conso. moyenne</h6>
-                            <h2 class="text-warning" id="kpiConso">-</h2>
-                            <small class="text-muted">kWh/m²/an</small>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="card text-center kpi-card">
-                        <div class="card-body">
-                            <h6 class="text-muted">Coût total annuel</h6>
-                            <h2 class="text-danger" id="kpiCout">-</h2>
-                            <small class="text-muted">€/an</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Graphiques -->
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-pie-chart"></i> Répartition des étiquettes DPE</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="chartEtiquettes"></canvas>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-bar-chart"></i> Consommation par type de bien</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="chartTypeBien"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mb-4">
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-lightning"></i> Répartition des énergies</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="chartEnergies"></canvas>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-clock-history"></i> DPE à renouveler</h5>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="chartExpiration"></canvas>
-                            <div id="alertesDPE" class="mt-3"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Carte -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-geo-alt"></i> Cartographie du patrimoine</h5>
-                        </div>
-                        <div class="card-body">
-                            <div id="map" style="height: 500px;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Tableau détaillé -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5><i class="bi bi-table"></i> Détail des logements</h5>
-                        </div>
-                        <div class="card-body">
-                            <table id="tableauLogements" class="table table-striped table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>Adresse</th>
-                                        <th>Code Postal</th>
-                                        <th>Étiquette DPE</th>
-                                        <th>Étiquette GES</th>
-                                        <th>Surface (m²)</th>
-                                        <th>Conso (kWh/m²/an)</th>
-                                        <th>Coût annuel (€)</th>
-                                        <th>Énergie chauffage</th>
-                                        <th>Date DPE</th>
-                                        <th>Expiration</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tableauBody">
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Export -->
-            <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <button class="btn btn-success btn-lg" id="exportExcelBtn">
-                                <i class="bi bi-file-earmark-excel"></i> Exporter en Excel
-                            </button>
-                            <button class="btn btn-info btn-lg" id="exportPdfBtn">
-                                <i class="bi bi-file-earmark-pdf"></i> Exporter en PDF
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <button class="btn btn-go" id="btn-search" onclick="searchDpe()">→ Rechercher</button>
+      </div>
+      <div class="url-bar" id="url-search">—</div>
+      <div class="status" id="st-search"></div>
+      <div id="result-search"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="app.js"></script>
+    <!-- PANEL : STATS -->
+    <div class="panel" id="panel-stats">
+      <h1>Stats par ville</h1>
+      <p class="subtitle">Analyse la répartition des étiquettes DPE sur un code postal</p>
+      <div class="row">
+        <div class="field">
+          <label>Code postal</label>
+          <input type="text" id="inp-cp" value="59140" maxlength="5"
+                 onkeydown="if(event.key==='Enter')loadStats()">
+        </div>
+        <div class="field" style="max-width:160px">
+          <label>Échantillon</label>
+          <select id="inp-size">
+            <option value="100">100 DPE</option>
+            <option value="500" selected>500 DPE</option>
+            <option value="1000">1000 DPE</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-stats" onclick="loadStats()">→ Analyser</button>
+      </div>
+      <div class="url-bar" id="url-stats">—</div>
+      <div class="status" id="st-stats"></div>
+      <div id="result-stats"></div>
+    </div>
+
+    <!-- PANEL : REQUÊTE LIBRE -->
+    <div class="panel" id="panel-raw">
+      <h1>Requête libre</h1>
+      <p class="subtitle">Construis ta propre requête API et explore les champs disponibles</p>
+      <div class="chips" id="raw-chips"></div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Paramètres (après /lines?)</label>
+        <input type="text" id="inp-raw"
+          value="q=75001&q_fields=Code_postal_ban&select=N°_DPE,Etiquette_DPE,Surface_habitable_logement,Nom_commune_brut,Type_bâtiment&size=10"
+          oninput="updateRawUrl()">
+      </div>
+      <div class="url-bar" id="url-raw">—</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-go" id="btn-raw" onclick="runRaw()">→ Exécuter</button>
+        <button class="btn btn-ghost" onclick="copyRawUrl()">⎘ Copier l'URL</button>
+      </div>
+      <div class="status" id="st-raw"></div>
+      <div id="result-raw"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+const BASE = 'https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines';
+
+const RAW_EXAMPLES = [
+  { label: 'Paris 1er arrdt',   q: 'q=75001&q_fields=Code_postal_ban&select=N°_DPE,Etiquette_DPE,Surface_habitable_logement,Nom_commune_brut,Type_bâtiment&size=10' },
+  { label: 'Passoires G récentes', q: 'qs=Etiquette_DPE:G&select=N°_DPE,Nom_commune_brut,Code_postal_ban,Surface_habitable_logement,Date_établissement_DPE&size=10&sort=-Date_établissement_DPE' },
+  { label: 'Dunkerque 59140',   q: 'qs=Code_postal_ban:59140&select=N°_DPE,Etiquette_DPE,Etiquette_GES,Conso_5_usages_é_finale,Surface_habitable_logement,Type_énergie_principale_chauffage&size=10' },
+  { label: '5 derniers DPE',    q: 'select=N°_DPE,Date_établissement_DPE,Etiquette_DPE,Nom_commune_brut,Prénom_diagnostiqueur,Nom_diagnostiqueur&sort=-Date_établissement_DPE&size=5' },
+  { label: 'Gros logements >150m²', q: 'qs=Surface_habitable_logement:[150 TO *]&select=N°_DPE,Surface_habitable_logement,Etiquette_DPE,Nom_commune_brut,Code_postal_ban&size=10&sort=-Surface_habitable_logement' },
+];
+
+/* ── NAV ── */
+function show(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (id === 'raw') { buildChips(); updateRawUrl(); }
+}
+
+/* ── UTILS ── */
+function fmt(v) { return (v !== null && v !== undefined && v !== '') ? v : '—'; }
+function fmtN(v, dec=0) {
+  const n = parseFloat(v);
+  if (isNaN(n)) return '—';
+  return dec ? n.toFixed(dec) : Math.round(n).toLocaleString('fr-FR');
+}
+function etiq(v, lg) {
+  if (!v) return '—';
+  return `<span class="etiq${lg?' etiq-lg':''} ${v}">${v}</span>`;
+}
+
+function setStatus(id, type, msg) {
+  const el = document.getElementById('st-' + id);
+  el.className = 'status ' + type;
+  el.innerHTML = msg;
+}
+function clearStatus(id) {
+  const el = document.getElementById('st-' + id);
+  el.className = 'status';
+  el.style.display = '';
+}
+
+async function apiFetch(url, btnId, statusId) {
+  const btn = document.getElementById(btnId);
+  btn.disabled = true;
+  btn.textContent = '⏳ Chargement…';
+  setStatus(statusId, 'info', '<span class="spin">↻</span> &nbsp;Requête en cours…');
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + r.statusText);
+    const d = await r.json();
+    clearStatus(statusId);
+    return d;
+  } catch(e) {
+    setStatus(statusId, 'err', '✖ ' + e.message + ' — Vérifiez votre connexion ou la validité des paramètres.');
+    return null;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = btnId === 'btn-search' ? '→ Rechercher'
+                    : btnId === 'btn-stats'  ? '→ Analyser'
+                    :                          '→ Exécuter';
+  }
+}
+
+/* ─────────────────────────────────────────
+   ONGLET 1 — RECHERCHE PAR N° DPE
+───────────────────────────────────────── */
+async function searchDpe() {
+  const num = document.getElementById('inp-dpe').value.trim();
+  if (!num) return;
+  const url = `${BASE}?q=${encodeURIComponent(num)}&q_fields=N°_DPE&size=1`;
+  document.getElementById('url-search').innerHTML = 'GET &nbsp;<span>' + url + '</span>';
+  const data = await apiFetch(url, 'btn-search', 'search');
+  if (!data) return;
+  const el = document.getElementById('result-search');
+  if (!data.results?.length) {
+    el.innerHTML = `<div class="card" style="color:var(--muted)">Aucun DPE trouvé pour ce numéro.<br>
+      Le DPE est peut-être trop récent (synchro hebdomadaire) ou le numéro est incorrect.</div>`;
+    return;
+  }
+  const d = data.results[0];
+  el.innerHTML = renderDpeCard(d, data.total);
+}
+
+function renderDpeCard(d, total) {
+  const eDpe = d['Etiquette_DPE'] || '';
+  const eGes = d['Etiquette_GES'] || '';
+  return `
+  <div class="card">
+    <div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:20px">
+      <div>${etiq(eDpe, true)}</div>
+      <div style="flex:1">
+        <div style="font-size:16px;font-weight:700;margin-bottom:2px">${fmt(d['Adresse_brut'])}</div>
+        <div style="color:var(--muted);font-family:var(--mono);font-size:12px">${fmt(d['Code_postal_ban'])} ${fmt(d['Nom_commune_brut'])}</div>
+        <div style="color:var(--muted);font-family:var(--mono);font-size:11px;margin-top:4px">N° DPE · ${fmt(d['N°_DPE'])}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">RÉSULTATS API</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent);font-family:var(--mono)">${total}</div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric accent"><div class="v">${etiq(eDpe)}</div><div class="l">Étiquette énergie</div></div>
+      <div class="metric"><div class="v">${etiq(eGes)}</div><div class="l">Étiquette GES</div></div>
+      <div class="metric cyan"><div class="v">${fmtN(d['Conso_5_usages_é_finale'])}</div><div class="l">kWh énergie finale/an</div></div>
+      <div class="metric amber"><div class="v">${fmtN(d['Conso_5_usages_m2'])}</div><div class="l">kWh/m²/an conv.</div></div>
+      <div class="metric"><div class="v">${fmtN(d['Emission_GES_5_usages_m2'])}</div><div class="l">kg CO₂/m²/an</div></div>
+      <div class="metric"><div class="v">${fmtN(d['Surface_habitable_logement'])} m²</div><div class="l">Surface habitable</div></div>
+    </div>
+
+    <div class="sep"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div class="card-title">Logement</div>
+        <div class="kv">
+          <span class="k">Type</span><span class="val">${fmt(d['Type_bâtiment'])}</span>
+          <span class="k">Construction</span><span class="val">${fmt(d['Période_construction'])}</span>
+          <span class="k">Niveaux</span><span class="val">${fmt(d['Nombre_niveau_logement'])}</span>
+          <span class="k">Haut. plafond</span><span class="val">${fmt(d['Hauteur_sous-plafond'])} m</span>
+        </div>
+      </div>
+      <div>
+        <div class="card-title">Équipements</div>
+        <div class="kv">
+          <span class="k">Chauffage</span><span class="val">${fmt(d['Type_énergie_principale_chauffage'])}</span>
+          <span class="k">Installation</span><span class="val">${fmt(d['Type_installation_chauffage'])}</span>
+          <span class="k">ECS</span><span class="val">${fmt(d['Type_énergie_principale_ECS'])}</span>
+          <span class="k">Ventilation</span><span class="val">${fmt(d['Type_ventilation'])}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="card-title">Diagnostiqueur & dates</div>
+    <div class="kv">
+      <span class="k">Diagnostiqueur</span><span class="val">${fmt(d['Prénom_diagnostiqueur'])} ${fmt(d['Nom_diagnostiqueur'])}</span>
+      <span class="k">Date visite</span><span class="val">${fmt(d['Date_visite_diagnostiqueur'])}</span>
+      <span class="k">Date établissement</span><span class="val">${fmt(d['Date_établissement_DPE'])}</span>
+    </div>
+
+    <div class="sep"></div>
+    <div class="card-title">JSON brut · réponse complète</div>
+    <div class="raw" id="json-out">${colorizeJson(JSON.stringify(d, null, 2))}</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────
+   ONGLET 2 — STATS PAR VILLE
+───────────────────────────────────────── */
+async function loadStats() {
+  const cp = document.getElementById('inp-cp').value.trim();
+  const size = document.getElementById('inp-size').value;
+  if (!cp) return;
+  const fields = 'N°_DPE,Etiquette_DPE,Etiquette_GES,Surface_habitable_logement,Type_bâtiment,Conso_5_usages_é_finale,Emission_GES_5_usages_m2,Type_énergie_principale_chauffage,Période_construction,Nom_commune_brut';
+  const url = `${BASE}?qs=Code_postal_ban:${cp}&select=${fields}&size=${size}`;
+  document.getElementById('url-stats').innerHTML = 'GET &nbsp;<span>' + url + '</span>';
+  const data = await apiFetch(url, 'btn-stats', 'stats');
+  if (!data?.results) return;
+  renderStats(data, cp);
+}
+
+function renderStats(data, cp) {
+  const res = data.results;
+  const n = res.length;
+  if (!n) { document.getElementById('result-stats').innerHTML = '<div class="card" style="color:var(--muted)">Aucun résultat pour ce code postal.</div>'; return; }
+
+  const ville = res[0]['Nom_commune_brut'] || cp;
+  const EC = {};
+  ['A','B','C','D','E','F','G'].forEach(e => EC[e] = 0);
+  let totConso=0, nConso=0, totSurf=0, nSurf=0, totGes=0, nGes=0;
+  const enrg = {}, types = {};
+
+  res.forEach(r => {
+    const e = r['Etiquette_DPE'];
+    if (e && EC[e] !== undefined) EC[e]++;
+    const c = parseFloat(r['Conso_5_usages_é_finale']);
+    if (!isNaN(c)) { totConso += c; nConso++; }
+    const s = parseFloat(r['Surface_habitable_logement']);
+    if (!isNaN(s)) { totSurf += s; nSurf++; }
+    const g = parseFloat(r['Emission_GES_5_usages_m2']);
+    if (!isNaN(g)) { totGes += g; nGes++; }
+    const en = r['Type_énergie_principale_chauffage'] || 'Non renseigné';
+    enrg[en] = (enrg[en] || 0) + 1;
+    const ty = r['Type_bâtiment'] || 'Non renseigné';
+    types[ty] = (types[ty] || 0) + 1;
+  });
+
+  const maxBar = Math.max(...Object.values(EC), 1);
+  const passoires = EC['F'] + EC['G'];
+  const passPct = Math.round((passoires / n) * 100);
+  const bCols = { A:'#1a5c3a', B:'#2d5e16', C:'#4d6b0f', D:'#7c5a08', E:'#7c3a08', F:'#7c1212', G:'#500d0d' };
+  const bText = { A:'#4ade80', B:'#86efac', C:'#bef264', D:'#fde68a', E:'#fdba74', F:'#fca5a5', G:'#ef4444' };
+  const modeE = ['A','B','C','D','E','F','G'].reduce((a,b) => EC[a] >= EC[b] ? a : b);
+  const enrgTop = Object.entries(enrg).sort((a,b) => b[1]-a[1]).slice(0, 5);
+  const enrgMax = enrgTop[0]?.[1] || 1;
+  const typesHtml = Object.entries(types).sort((a,b)=>b[1]-a[1]).map(([t,c]) =>
+    `<span style="font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);color:var(--muted)">${t} <strong style="color:var(--text)">${c}</strong></span>`).join('');
+
+  document.getElementById('result-stats').innerHTML = `
+  <div class="card">
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">${ville} · ${cp}</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:20px">
+      ${n.toLocaleString('fr-FR')} DPE analysés sur ${data.total?.toLocaleString('fr-FR') || '?'} au total
+    </div>
+
+    <div class="metrics">
+      <div class="metric cyan"><div class="v">${Math.round(totConso/Math.max(nConso,1)).toLocaleString('fr-FR')}</div><div class="l">kWh EF/an moyen</div></div>
+      <div class="metric"><div class="v">${Math.round(totSurf/Math.max(nSurf,1))} m²</div><div class="l">Surface moy.</div></div>
+      <div class="metric amber"><div class="v">${Math.round(totGes/Math.max(nGes,1))}</div><div class="l">kg CO₂/m²/an moy.</div></div>
+      <div class="metric" style="border:1px solid rgba(239,68,68,.3)"><div class="v" style="color:#fca5a5">${passPct}%</div><div class="l">Passoires F+G</div></div>
+      <div class="metric accent"><div class="v">${etiq(modeE)}</div><div class="l">Étiquette dominante</div></div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="card-title">Répartition des étiquettes DPE</div>
+    ${['A','B','C','D','E','F','G'].map(e => `
+    <div class="bar-row">
+      <div class="bar-label">${etiq(e)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((EC[e]/maxBar)*100)}%;background:${bCols[e]}"></div></div>
+      <div class="bar-count"><span style="color:${bText[e]}">${EC[e]}</span> <span style="opacity:.5">(${Math.round((EC[e]/n)*100)}%)</span></div>
+    </div>`).join('')}
+
+    <div class="sep"></div>
+    <div class="card-title">Énergies de chauffage</div>
+    ${enrgTop.map(([en,cnt]) => `
+    <div class="bar-row">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${en}">${en}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round((cnt/enrgMax)*100)}%;background:var(--accent2);opacity:.5"></div></div>
+      <div class="bar-count">${cnt}</div>
+    </div>`).join('')}
+
+    <div class="sep"></div>
+    <div class="card-title">Types de logements</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">${typesHtml}</div>
+  </div>`;
+}
+
+/* ─────────────────────────────────────────
+   ONGLET 3 — REQUÊTE LIBRE
+───────────────────────────────────────── */
+function buildChips() {
+  const wrap = document.getElementById('raw-chips');
+  if (wrap.children.length) return;
+  RAW_EXAMPLES.forEach(ex => {
+    const b = document.createElement('button');
+    b.className = 'chip';
+    b.textContent = ex.label;
+    b.onclick = () => { document.getElementById('inp-raw').value = ex.q; updateRawUrl(); };
+    wrap.appendChild(b);
+  });
+}
+
+function updateRawUrl() {
+  const p = document.getElementById('inp-raw').value;
+  document.getElementById('url-raw').innerHTML = 'GET &nbsp;<span>' + BASE + '?' + p + '</span>';
+}
+
+function copyRawUrl() {
+  const url = BASE + '?' + document.getElementById('inp-raw').value;
+  navigator.clipboard.writeText(url).then(() => {
+    setStatus('raw', 'ok', '✔ URL copiée dans le presse-papier');
+    setTimeout(() => clearStatus('raw'), 2000);
+  });
+}
+
+async function runRaw() {
+  const p = document.getElementById('inp-raw').value.trim();
+  const url = BASE + '?' + p;
+  const data = await apiFetch(url, 'btn-raw', 'raw');
+  if (!data) return;
+  const el = document.getElementById('result-raw');
+  const cols = data.results?.[0] ? Object.keys(data.results[0]) : [];
+  el.innerHTML = `
+  <div class="card">
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:14px">
+      <span style="color:var(--accent)">${(data.total||0).toLocaleString('fr-FR')}</span> résultats au total &nbsp;·&nbsp;
+      <span style="color:var(--accent2)">${data.results?.length||0}</span> retournés &nbsp;·&nbsp;
+      ${cols.length} colonnes
+    </div>
+    ${data.results?.length ? `
+    <div class="tbl-wrap" style="margin-bottom:16px">
+      <table>
+        <thead><tr>${cols.map(c=>`<th title="${c}">${c}</th>`).join('')}</tr></thead>
+        <tbody>
+          ${data.results.map((r,i) => `<tr>
+            ${cols.map(c => {
+              const v = r[c];
+              const disp = (v!==null&&v!==undefined&&v!=='') ? v : '<span style="color:var(--muted)">—</span>';
+              return `<td title="${v||''}">${disp}</td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-title">JSON brut complet</div>
+    <div class="raw">${colorizeJson(JSON.stringify(data, null, 2))}</div>
+    ` : '<div style="color:var(--muted);font-family:var(--mono);font-size:13px">Aucun résultat.</div>'}
+  </div>`;
+}
+
+/* ─────────────────────────────────────────
+   JSON COLORIZER
+───────────────────────────────────────── */
+function colorizeJson(str) {
+  return str
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+      if (/^"/.test(m)) {
+        if (/:$/.test(m)) return `<span class="json-key">${m}</span>`;
+        return `<span class="json-str">${m}</span>`;
+      }
+      if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
+      return `<span class="json-num">${m}</span>`;
+    });
+}
+
+/* INIT */
+buildChips();
+updateRawUrl();
+</script>
 </body>
 </html>
