@@ -438,9 +438,9 @@ tr:hover td{background:var(--surface2)}
       <h1>Vue 3D thermique</h1>
       <p class="subtitle">Représentation du logement avec carte thermique des parois — importez un XML ADEME</p>
 
-      <div id="view3d-drop" onclick="document.getElementById('view3d-xml').click()"
+      <div id="view3d-drop" onclick="document.getElementById('view3d-file').click()"
         style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:16px;transition:all .2s" id="drop3d">
-        <input type="file" id="view3d-xml" accept=".xml" style="display:none" onchange="load3dXml(this)">
+        <input type="file" id="view3d-file" accept=".xml,.xls,.xlsx" style="display:none" onchange="load3dFile(this.files[0])">
         <div style="font-size:32px;margin-bottom:10px">📦</div>
         <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME</div>
         <div style="font-size:12px;color:var(--muted)">Génère une maquette 3D orientée avec carte thermique des U-values</div>
@@ -1395,9 +1395,8 @@ document.addEventListener('DOMContentLoaded', function() {
       drop3dEl.style.borderColor='rgba(255,255,255,.15)';
       const file = e.dataTransfer.files[0];
       if (!file) return;
-      const dt = new DataTransfer(); dt.items.add(file);
-      document.getElementById('view3d-file').files = dt.files;
-      load3dFile(document.getElementById('view3d-file'));
+      // Passer le File directement — pas besoin de DataTransfer → input
+      load3dFile(file);
     });
   }
 });
@@ -1833,8 +1832,9 @@ function parseXml3d(doc) {
     numero: xget('numero_dpe') };
 }
 
-function load3dFile(input) {
-  const file = input.files[0];
+function load3dFile(inputOrFile) {
+  // Accepte un HTMLInputElement ou un objet File directement
+  const file = (inputOrFile instanceof File) ? inputOrFile : inputOrFile.files[0];
   if (!file) return;
   const ext = file.name.split('.').pop().toLowerCase();
   if (ext === 'xml') {
