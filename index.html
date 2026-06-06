@@ -298,7 +298,7 @@ tr:hover td{background:var(--surface2)}
           <input type="checkbox" id="f-exact-addr" style="width:auto">
           Recherche exacte adresse
         </label>
-        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Utilise des filtres exclusifs : adresse + code postal/ville + filtres actifs.</span>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Mode robuste : interroge l'ADEME puis filtre localement sur numéro + rue + CP/ville. Logs visibles dans la console.</span>
       </div>
 
       <!-- Accordéon filtres -->
@@ -1166,20 +1166,70 @@ function escapeQsValue(v) {
   return String(v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
 }
 
+function normAddr(v) {
+  return String(v || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, ' ')
+    .replace(/\bavenue\b/g, 'av')
+    .replace(/\bboulevard\b/g, 'bd')
+    .replace(/\bsaint\b/g, 'st')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractCp(v) {
+  const m = String(v || '').match(/\b\d{5}\b/);
+  return m ? m[0] : '';
+}
+
+function isExactAddressMatch(d, num, rue, ville) {
+  const nNum = normAddr(num);
+  const nRue = normAddr(rue);
+  const cpWanted = /^\d{5}$/.test(ville) ? ville : extractCp(ville);
+  const villeWanted = cpWanted ? '' : normAddr(ville);
+
+  const dNum = normAddr(d.numero_voie_ban || '');
+  const dRue = normAddr(d.nom_rue_ban || '');
+  const dCp  = String(d.code_postal_ban || d.code_postal_brut || '');
+  const dVille = normAddr(d.nom_commune_ban || d.nom_commune_brut || '');
+  const dAdr = normAddr(d.adresse_brut || d.adresse_ban || d.adresse_complete_brut || '');
+
+  const numOk = !nNum || dNum === nNum || dAdr.startsWith(nNum + ' ');
+  const rueOk = !nRue || dRue === nRue || dRue.includes(nRue) || dAdr.includes(nRue);
+  const locOk = cpWanted ? dCp === cpWanted : (!villeWanted || dVille === villeWanted || dVille.includes(villeWanted));
+
+  return numOk && rueOk && locOk;
+}
+
+function compactDpeForLog(d) {
+  return {
+    numero_dpe: d.numero_dpe,
+    adresse_brut: d.adresse_brut,
+    adresse_ban: d.adresse_ban,
+    adresse_complete_brut: d.adresse_complete_brut,
+    numero_voie_ban: d.numero_voie_ban,
+    nom_rue_ban: d.nom_rue_ban,
+    code_postal_ban: d.code_postal_ban,
+    nom_commune_ban: d.nom_commune_ban,
+    score_ban: d.score_ban,
+    statut_geocodage: d.statut_geocodage,
+    etiquette_dpe: d.etiquette_dpe,
+    surface_habitable_logement: d.surface_habitable_logement
+  };
+}
+
 function buildExactAddressQs(num, rue, ville) {
-  const adr = escapeQsValue([num, rue].filter(Boolean).join(' '));
+  // On ne verrouille volontairement que la localisation et les filtres.
+  // L'adresse exacte est ensuite filtrée localement car les champs ADEME peuvent varier :
+  // adresse_brut, adresse_ban, adresse_complete_brut, numero_voie_ban, nom_rue_ban.
   const loc = escapeQsValue(ville);
   const parts = [];
-
-  if (adr) {
-    // On interroge les deux champs courants, car selon les DPE l'adresse complète peut être dans adresse_brut ou adresse_ban.
-    parts.push('(adresse_brut:"' + adr + '" OR adresse_ban:"' + adr + '")');
-  }
 
   if (/^\d{5}$/.test(loc)) {
     parts.push('code_postal_ban:' + loc);
   } else if (loc) {
-    parts.push('nom_commune_ban:"' + loc + '"');
+    parts.push('(nom_commune_ban:"' + loc + '" OR nom_commune_brut:"' + loc.toUpperCase() + '")');
   }
 
   return parts.join(' AND ');
@@ -1208,10 +1258,13 @@ async function searchAddr() {
       return;
     }
 
+    // Requête large mais cadrée : l'API ramène les candidats, puis filtrage strict côté application.
+    // C'est plus fiable que qs=adresse_brut:"..." car les adresses ADEME/BAN ne sont pas toujours formatées pareil.
+    params.q = q;
+    params.size = String(Math.max(parseInt(size || '20', 10), 100));
+
     const exactQs = buildExactAddressQs(num, rue, ville);
     params.qs = [exactQs, qsFilters].filter(Boolean).join(' AND ');
-
-    // En mode exact, on n'utilise volontairement pas q : sinon l'API élargit la recherche en plein texte.
   } else {
     params.q = q;
     if (qsFilters) params.qs = qsFilters;
@@ -1220,9 +1273,36 @@ async function searchAddr() {
   const url = buildUrl(params);
   document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
 
+  console.groupCollapsed('[DPE Explorer] Recherche adresse' + (exact ? ' exacte' : ''));
+  console.log('Saisie utilisateur', { numero: num, rue: rue, ville: ville, exact: exact });
+  console.log('Paramètres API', params);
+  console.log('URL API affichée', displayUrl(params));
+
   const data = await apiFetch(url, 'btn-addr', 'addr');
-  if (!data) return;
-  renderAddrResults(data, q);
+  if (!data) { console.groupEnd(); return; }
+
+  console.log('Total ADEME retourné', data.total, 'résultats chargés', data.results?.length || 0);
+  console.table((data.results || []).slice(0, 20).map(compactDpeForLog));
+
+  let renderData = data;
+  if (exact) {
+    const before = data.results || [];
+    const filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
+    console.log('Résultats après filtre local exact', filtered.length);
+    console.table(filtered.map(compactDpeForLog));
+
+    renderData = Object.assign({}, data, {
+      total: filtered.length,
+      results: filtered.slice(0, parseInt(size || '20', 10)),
+      _exactSearch: true,
+      _exactBeforeCount: before.length,
+      _exactInput: { num, rue, ville },
+      _exactCandidates: before.slice(0, 8).map(compactDpeForLog)
+    });
+  }
+
+  console.groupEnd();
+  renderAddrResults(renderData, q);
 }
 
 function renderAddrResults(data, query) {
@@ -1231,7 +1311,16 @@ function renderAddrResults(data, query) {
   const total = data.total || 0;
 
   if (!res.length) {
-    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.</div>';
+    let diag = '';
+    if (data._exactSearch) {
+      diag = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;line-height:1.7">'
+        + '<strong style="color:var(--accent2)">Diagnostic recherche exacte</strong><br>'
+        + 'L'API a retourné ' + (data._exactBeforeCount || 0) + ' candidat(s), mais aucun ne correspond strictement à : '
+        + '<span style="color:var(--text)">' + data._exactInput.num + ' ' + data._exactInput.rue + ' ' + data._exactInput.ville + '</span>.<br>'
+        + 'Ouvre la console navigateur : un tableau affiche les champs ADEME/BAN reçus.'
+        + '</div>';
+    }
+    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.' + diag + '</div>';
     return;
   }
 
@@ -1251,6 +1340,7 @@ function renderAddrResults(data, query) {
   let html = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px">'
     + '<span style="color:var(--accent);font-weight:600">' + total.toLocaleString('fr-FR') + '</span>'
     + ' DPE trouvés · ' + res.length + ' affichés'
+    + (data._exactSearch ? ' · <span style="color:var(--accent2)">mode exact local</span>' : '')
     + '</div>';
 
   html += '<div style="display:flex;flex-direction:column;gap:10px">';
