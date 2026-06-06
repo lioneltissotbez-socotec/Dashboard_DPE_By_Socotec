@@ -1746,14 +1746,35 @@ let camTheta = Math.PI/4, camPhi = Math.PI/3.5, camDist = 20;
 let allMeshes3d = [];
 let renoMode = false, xrayMode = false;
 
-// Gradient thermique : bleu (bien) → vert → jaune → rouge (mauvais)
-function uToColor(U, Umax) {
-  if (!U || U <= 0) return new THREE.Color(0x445566);
-  const t = Math.min(Math.max(U / (Umax || 2.5), 0), 1);
-  const r = t < 0.5 ? Math.round(t*2 * 220) : 220;
-  const g = t < 0.5 ? Math.round(180 + t*2*40) : Math.round(220 - (t-0.5)*2*180);
-  const b = t < 0.5 ? Math.round(80 - t*2*80)  : 0;
-  return new THREE.Color(r/255, g/255, b/255);
+// Gradient thermique absolu basé sur les seuils réglementaires RT2012/RE2020
+// Indépendant du dossier — même couleur pour le même U-value quel que soit le bâtiment
+const U_SCALE = [
+  { u: 0.00, r:0x1a, g:0x7a, b:0x4a },  // Très bien    : vert foncé   (≤ 0.15)
+  { u: 0.20, r:0x4a, g:0xde, b:0x80 },  // Bien         : vert vif     (≤ 0.25)
+  { u: 0.40, r:0xa0, g:0xcc, b:0x20 },  // Acceptable   : vert-jaune   (≤ 0.40)
+  { u: 0.70, r:0xf5, g:0x9e, b:0x0b },  // Insuffisant  : orange       (≤ 0.70)
+  { u: 1.20, r:0xd8, g:0x5a, b:0x00 },  // Mauvais      : orange-rouge (≤ 1.20)
+  { u: 2.00, r:0xef, g:0x22, b:0x22 },  // Très mauvais : rouge vif    (≤ 2.00)
+  { u: 3.00, r:0x80, g:0x00, b:0x00 },  // Passoire     : rouge foncé  (> 2.00)
+];
+const U_MAX_DISPLAY = 2.5; // Valeur max pour la légende
+
+function uToColor(U) {
+  if (!U || U <= 0) return new THREE.Color(0x334455); // Non renseigné : gris bleu
+  // Interpolation linéaire entre les paliers
+  for (let i = 0; i < U_SCALE.length - 1; i++) {
+    const a = U_SCALE[i], b2 = U_SCALE[i+1];
+    if (U <= b2.u) {
+      const t = (U - a.u) / (b2.u - a.u);
+      return new THREE.Color(
+        (a.r + (b2.r - a.r)*t) / 255,
+        (a.g + (b2.g - a.g)*t) / 255,
+        (a.b + (b2.b - a.b)*t) / 255,
+      );
+    }
+  }
+  // Au-delà du dernier palier : rouge foncé
+  return new THREE.Color(U_SCALE[U_SCALE.length-1].r/255, U_SCALE[U_SCALE.length-1].g/255, U_SCALE[U_SCALE.length-1].b/255);
 }
 
 // Parse XML ADEME — version corrigée avec les vraies balises
@@ -2076,9 +2097,7 @@ function build3dScene(d) {
   const Lx = Math.max((getLen('N') + getLen('S')) / 2, 3); // E-O
   const Lz = Math.max((getLen('E') + getLen('O')) / 2, 3); // N-S
 
-  // U-max pour normalisation couleur
-  const Uvals = Object.values(mursMap).map(m => m.U).filter(Boolean);
-  const Umax  = Uvals.length ? Math.max(...Uvals) : 2.5;
+  // Couleurs basées sur seuils absolus RT2012/RE2020 — pas de normalisation relative
 
   // Sol
   const ground = new THREE.Mesh(
@@ -2104,7 +2123,7 @@ function build3dScene(d) {
     const md = mursMap[f.o];
     const bd = baisMap[f.o];
     const U  = md ? md.U : null;
-    const wallColor = uToColor(U, Umax);
+    const wallColor = uToColor(U);
 
     // ── MUR PLEIN (avec trou si vitrages) ──
     // On utilise un BoxGeometry simple et on place l'ouverture comme un plan transparent
@@ -2254,7 +2273,7 @@ function build3dScene(d) {
   labels.forEach(lb => addLabel3d(lb.o, lb.x, 0.6, lb.z, lb.color, 56));
 
   // ── LÉGENDE U-VALUES ──
-  buildLegend3d(Umax);
+  buildLegend3d();
 
   // ── RAYCASTER ──
   setupRaycaster3d();
@@ -2285,7 +2304,7 @@ function buildLegend3d(Umax) {
   const steps = [0, Umax*0.25, Umax*0.5, Umax*0.75, Umax];
   const labels = ['Très bien','Bien','Moyen','Mauvais','Très mauvais'];
   wrap.innerHTML = steps.map((u,i) => {
-    const c = uToColor(u, Umax);
+    const c = uToColor(u);
     const hex = '#' + [c.r,c.g,c.b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
     return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
       '<div style="width:14px;height:8px;border-radius:2px;background:' + hex + '"></div>' +
@@ -2395,12 +2414,11 @@ function setView3d(view) {
 function toggleRenovation(enabled) {
   renoMode = enabled;
   if (!dpe3dData) return;
-  const Umax = Math.max(...Object.values(dpe3dData.mursMap).map(m=>m.U||0));
   allMeshes3d.forEach(m => {
     if (m.userData.type !== 'wall') return;
     const U = parseFloat(m.userData.U) || 1.5;
     const newU = enabled ? Math.max(U * 0.3, 0.15) : U; // simulation isolation
-    const nc = uToColor(newU, Umax);
+    const nc = uToColor(newU);
     m.userData.originalColor = nc.clone();
     m.material.color.copy(nc);
   });
@@ -2424,13 +2442,12 @@ function renderParoisStats(d) {
   const el = document.getElementById('parois3d-stats');
   if (!el) return;
   const LABEL = {N:'Nord',E:'Est',S:'Sud',O:'Ouest'};
-  const Umax = Math.max(...Object.values(d.mursMap).map(m=>m.U||0));
 
   let html = '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">';
   ['N','E','S','O'].forEach(o => {
     const md = d.mursMap[o]; if (!md) return;
     const bd = d.baisMap[o];
-    const c  = uToColor(md.U, Umax);
+    const c  = uToColor(md.U);
     const hex = '#' + [c.r,c.g,c.b].map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
     html += '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 16px">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
