@@ -1385,6 +1385,21 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+  // Drop zone 3D — accepte XML et XLS/XLSX
+  const drop3dEl = document.getElementById('view3d-drop');
+  if (drop3dEl) {
+    drop3dEl.addEventListener('dragover', e => { e.preventDefault(); drop3dEl.style.borderColor='var(--accent)'; });
+    drop3dEl.addEventListener('dragleave', () => { drop3dEl.style.borderColor='rgba(255,255,255,.15)'; });
+    drop3dEl.addEventListener('drop', e => {
+      e.preventDefault();
+      drop3dEl.style.borderColor='rgba(255,255,255,.15)';
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const dt = new DataTransfer(); dt.items.add(file);
+      document.getElementById('view3d-file').files = dt.files;
+      load3dFile(document.getElementById('view3d-file'));
+    });
+  }
 });
 
 function loadRenoXml(input) {
@@ -1818,6 +1833,166 @@ function parseXml3d(doc) {
     numero: xget('numero_dpe') };
 }
 
+function load3dFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'xml') {
+    // Lire comme XML
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(e.target.result, 'application/xml');
+        if (doc.querySelector('parsererror')) throw new Error('XML invalide');
+        dpe3dData = parseXml3d(doc);
+        _finishLoad3d(file.name, dpe3dData);
+      } catch(err) { setStatus('3d', 'err', '✖ ' + err.message); }
+    };
+    reader.readAsText(file);
+  } else {
+    // Lire comme XLS/XLSX via SheetJS
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+        dpe3dData = parseXls3d(wb);
+        _finishLoad3d(file.name, dpe3dData);
+      } catch(err) { setStatus('3d', 'err', '✖ XLS: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  setStatus('3d', 'info', '<span class="spin">↻</span> &nbsp;Lecture fichier...');
+}
+
+function _finishLoad3d(fname, data) {
+  const elCtrl  = document.getElementById('controls3d');
+  const elWrap  = document.getElementById('canvas3d-wrap');
+  const elStats = document.getElementById('parois3d-stats');
+  const elDrop  = document.getElementById('drop3d');
+  if (elCtrl)  elCtrl.style.display  = 'flex';
+  if (elWrap)  elWrap.style.display  = 'block';
+  if (elStats) elStats.style.display = 'block';
+  setTimeout(() => {
+    build3dScene(data);
+    clearStatus('3d');
+    if (elDrop) elDrop.innerHTML =
+      '<div style="font-size:15px;color:var(--accent);font-weight:600">✅ ' + fname + '</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + (data.adresse||data.numero||'') + '</div>';
+    renderParoisStats(data);
+  }, 60);
+}
+
+function parseXls3d(wb) {
+  const ws = wb.Sheets['logement'] || wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+  // Construire un dict { clé: [val1, val2, ...] }
+  const R = {};
+  rows.forEach(row => {
+    const key = String(row[0] || '').trim();
+    if (!key) return;
+    const vals = row.slice(1).filter(v => v !== '' && v !== null && v !== undefined).map(v => String(v).trim());
+    if (!R[key]) R[key] = [];
+    R[key] = R[key].concat(vals);
+  });
+
+  // Trouver les deux blocs orientation (murs puis baies)
+  const orientRows = rows.reduce((acc, row, i) => {
+    if (String(row[0]||'').trim() === 'orientation') acc.push(i); return acc;
+  }, []);
+  const murOrientRow  = orientRows[0] !== undefined ? rows[orientRows[0]] : [];
+  const baieOrientRow = orientRows[1] !== undefined ? rows[orientRows[1]] : [];
+  const murOrients  = murOrientRow.slice(1).filter(v=>v!=='').map(v=>String(v).trim());
+  const baieOrients = baieOrientRow.slice(1).filter(v=>v!=='').map(v=>String(v).trim());
+
+  // Trouver le premier bloc type_adjacence (pour les murs)
+  const adjRows = rows.reduce((acc,row,i) => {
+    if (String(row[0]||'').trim()==='type_adjacence') acc.push(i); return acc;
+  }, []);
+  const murAdjs = adjRows[0]!==undefined
+    ? rows[adjRows[0]].slice(1).filter(v=>v!=='').map(v=>String(v).trim())
+    : [];
+
+  const ORIENT_MAP = {'nord':'N','sud':'S','est':'E','ouest':'O','n':'N','s':'S','e':'E','o':'O'};
+  const ISO_LABEL  = {'iti':'Isolation intérieure (ITI)','ite':'Isolation extérieure (ITE)',
+                      'itr':'Isolation par remplissage','non isolé':'Non isolé',
+                      'non isolée':'Non isolé','':''};
+
+  // Agréger murs par orientation extérieure
+  const mursMap = {};
+  const surfs  = R['surface_paroi_opaque'] || [];
+  const umurs  = R['umur'] || [];
+  const mats   = R['materiaux_structure_mur'] || [];
+  const isos   = R['type_isolation'] || [];
+  const eps    = R['epaisseur_structure'] || [];
+  const ep_isos= R['epaisseur_isolation'] || [];
+
+  murOrients.forEach((o, i) => {
+    const adj = murAdjs[i] || 'extérieur';
+    if (adj !== 'extérieur') return;
+    const orient = ORIENT_MAP[o.toLowerCase()] || o.toUpperCase()[0];
+    const surf   = parseFloat(surfs[i] || 0);
+    const U      = parseFloat(umurs[i] || umurs[0] || 1.5);
+    const mat    = mats[i] || mats[0] || '?';
+    const iso    = isos[i] || isos[0] || '';
+    const ep_iso = parseFloat(ep_isos[0] || 0); // souvent une seule valeur
+    if (!mursMap[orient]) {
+      mursMap[orient] = { surf:0, U_vals:[], mat, iso: ISO_LABEL[iso.toLowerCase()]||iso, ep_iso };
+    }
+    mursMap[orient].surf += surf;
+    mursMap[orient].U_vals.push(U);
+  });
+  for (const o in mursMap) {
+    const d = mursMap[o];
+    d.U = d.U_vals.reduce((a,b)=>a+b,0) / d.U_vals.length;
+  }
+
+  // Baies
+  const baisMap = {};
+  const bSurfs  = R['surface_totale_baie'] || [];
+  const bNbs    = R['nb_baie'] || [];
+  const bUws    = R['uw'] || R['uw_1'] || [];
+  const bTypes  = R['type_baie'] || [];
+  const bFerm   = R['type_fermeture'] || [];
+
+  baieOrients.forEach((o, i) => {
+    const orient = ORIENT_MAP[o.toLowerCase()] || o.toUpperCase()[0];
+    const surf   = parseFloat(bSurfs[i] || 0);
+    const nb     = parseInt(bNbs[i] || 1);
+    const Uw     = parseFloat(bUws[i] || 3.0);
+    const type   = bTypes[i] || '?';
+    const ferm   = bFerm[i] || '';
+    if (!baisMap[orient]) baisMap[orient] = { surf:0, nb:0, Uw, types:[], fermetures:[] };
+    baisMap[orient].surf += surf;
+    baisMap[orient].nb   += nb;
+    baisMap[orient].types.push(type);
+    baisMap[orient].fermetures.push(ferm);
+  });
+  for (const o in baisMap) {
+    const md = mursMap[o];
+    baisMap[o].ratio = md && md.surf > 0 ? baisMap[o].surf / md.surf : 0;
+  }
+
+  // Généralités
+  const ws_admin = wb.Sheets['administratif'];
+  const adm = ws_admin ? XLSX.utils.sheet_to_json(ws_admin, {header:1, defval:''}) : [];
+  const admDict = {};
+  adm.forEach(r => { if (r[0]) admDict[String(r[0]).trim()] = String(r[1]||'').trim(); });
+
+  const surf = parseFloat(R['surface_habitable_logement']?.[0] || R['surface_habitable']?.[0] || 100);
+  const niv  = parseInt(R['nombre_niveau_logement']?.[0] || 1);
+  const hsp  = parseFloat(R['hsp']?.[0] || 2.5);
+
+  return {
+    surf, niv, hsp, H: niv*hsp,
+    mursMap, baisMap,
+    adresse: admDict['adresse_brut'] || admDict['reference_interne_projet'] || '',
+    numero:  admDict['reference_interne_projet'] || '',
+    source:  'xls',
+  };
+}
+
 function load3dXml(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1953,6 +2128,7 @@ function build3dScene(d) {
       mat: md ? md.mat : '—',
       surf: md ? md.surf.toFixed(1) : '—',
       ep_iso: md && md.ep_iso > 0 ? (md.ep_iso * 100).toFixed(0) : 0,
+      iso: md ? (md.iso || '') : '',
       originalColor: wallColor.clone(),
     };
     allMeshes3d.push(wallMesh);
@@ -2142,11 +2318,14 @@ function setupRaycaster3d() {
         const ud = hits[0].object.userData;
         let html = '';
         if (ud.type === 'wall') {
+          const isoTip = ud.iso || (ud.ep_iso > 0 ? ud.ep_iso + ' cm' : null);
           html = '<strong style="color:#4ade80">Façade ' + ud.orient + '</strong><br>' +
             'Matériau : ' + ud.mat + '<br>' +
             'Surface totale : ' + ud.surf + ' m²<br>' +
-            'U moyen = <strong style="color:#f59e0b">' + ud.U + ' W/m²K</strong>' +
-            (ud.ep_iso > 0 ? '<br>Isolation : ' + ud.ep_iso + ' cm' : '<br><span style="color:#fca5a5">Non isolé</span>');
+            'U moyen = <strong style="color:#f59e0b">' + ud.U + ' W/m²K</strong><br>' +
+            (isoTip && isoTip !== 'Non isolé'
+              ? '<span style="color:#4ade80">✓ ' + isoTip + '</span>'
+              : '<span style="color:#fca5a5">✗ Non isolé</span>');
         } else {
           html = '<strong style="color:#88ccff">Vitrage ' + ud.orient + '</strong><br>' +
             ud.nb + ' baie(s) · ' + ud.surf + ' m²<br>' +
@@ -2260,8 +2439,15 @@ function renderParoisStats(d) {
     html += '<div style="font-size:11px;color:var(--muted);line-height:2">';
     html += '📐 Surface mur : <strong style="color:var(--text)">' + md.surf.toFixed(1) + ' m²</strong><br>';
     html += '🧱 Matériau : <strong style="color:var(--text)">' + md.mat + '</strong><br>';
-    html += '🪟 Vitrage : <strong style="color:var(--text)">' + (bd ? bd.surf.toFixed(1)+' m² ('+Math.round(bd.ratio*100)+'% façade)' : 'aucun') + '</strong><br>';
-    html += '🔒 Isolation : <strong style="color:var(--text)">' + (md.ep_iso>0 ? (md.ep_iso*100).toFixed(0)+' cm' : 'non isolé') + '</strong>';
+    // Isolation — afficher le label complet si dispo (XLS) sinon l'épaisseur (XML)
+    const isoLabel = md.iso || (md.ep_iso > 0 ? (md.ep_iso*100).toFixed(0)+' cm' : null);
+    const isoColor = isoLabel && isoLabel !== 'Non isolé' ? 'var(--accent)' : '#fca5a5';
+    html += '🔒 Isolation : <strong style="color:' + isoColor + '">' + (isoLabel || 'Non isolé') + '</strong><br>';
+    html += '🪟 Vitrage : <strong style="color:var(--text)">' + (bd ? bd.surf.toFixed(1)+' m² ('+Math.round(bd.ratio*100)+'% façade)' : 'aucun') + '</strong>';
+    if (bd && bd.types && bd.types.length) {
+      const typesUniq = [...new Set(bd.types)].join(', ');
+      html += '<br>🏠 Types : <strong style="color:var(--text)">' + typesUniq + '</strong>';
+    }
     html += '</div></div>';
   });
   html += '</div>';
@@ -2269,6 +2455,7 @@ function renderParoisStats(d) {
 }
 
 window.load3dXml      = load3dXml;
+window.load3dFile     = load3dFile;
 window.setView3d      = setView3d;
 window.toggleRenovation = toggleRenovation;
 window.toggleXray     = toggleXray;
