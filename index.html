@@ -2298,19 +2298,7 @@ function addLabel3d(text, x, y, z, color, size) {
   scene3d.add(sp);
 }
 
-function buildLegend3d(Umax) {
-  const wrap = document.getElementById('legend-items');
-  if (!wrap) return;
-  const steps = [0, Umax*0.25, Umax*0.5, Umax*0.75, Umax];
-  const labels = ['Très bien','Bien','Moyen','Mauvais','Très mauvais'];
-  wrap.innerHTML = steps.map((u,i) => {
-    const c = uToColor(u);
-    const hex = '#' + [c.r,c.g,c.b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:3px">' +
-      '<div style="width:14px;height:8px;border-radius:2px;background:' + hex + '"></div>' +
-      '<span style="color:rgba(255,255,255,.7);font-size:10px">' + u.toFixed(2) + ' – ' + labels[i] + '</span></div>';
-  }).join('');
-}
+// buildLegend3d — voir version avec seuils absolus ci-dessus
 
 function setupRaycaster3d() {
   const canvas  = document.getElementById('canvas3d');
