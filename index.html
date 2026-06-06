@@ -1891,7 +1891,7 @@ function build3dScene(d) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 1; sun.shadow.camera.far = 80;
   scene3d.add(sun);
-  scene3d.add(Object.assign(new THREE.DirectionalLight(0x8899cc, 0.25), {position:{set:(x,y,z)=>{}}}));
+  // lumière de remplissage ajoutée ci-dessous
   const fill = new THREE.DirectionalLight(0x8899cc, 0.25);
   fill.position.set(-10, 4, -8); scene3d.add(fill);
 
