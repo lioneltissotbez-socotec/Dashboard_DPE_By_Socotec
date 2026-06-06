@@ -1890,7 +1890,7 @@ function _finishLoad3d(fname, data) {
   const elCtrl  = document.getElementById('controls3d');
   const elWrap  = document.getElementById('canvas3d-wrap');
   const elStats = document.getElementById('parois3d-stats');
-  const elDrop  = document.getElementById('drop3d');
+  const elDrop  = document.getElementById('view3d-drop');
   if (elCtrl)  elCtrl.style.display  = 'flex';
   if (elWrap)  elWrap.style.display  = 'block';
   if (elStats) elStats.style.display = 'block';
@@ -2029,7 +2029,7 @@ function load3dXml(input) {
       const elCtrl  = document.getElementById('controls3d');
       const elWrap  = document.getElementById('canvas3d-wrap');
       const elStats = document.getElementById('parois3d-stats');
-      const elDrop  = document.getElementById('drop3d');
+      const elDrop  = document.getElementById('view3d-drop');
 
       if (elCtrl)  elCtrl.style.display  = 'flex';
       if (elWrap)  elWrap.style.display  = 'block';
@@ -2298,7 +2298,40 @@ function addLabel3d(text, x, y, z, color, size) {
   scene3d.add(sp);
 }
 
-// buildLegend3d — voir version avec seuils absolus ci-dessus
+
+function buildLegend3d() {
+  const wrap = document.getElementById('legend-items');
+  if (!wrap) return;
+
+  const rows = [
+    { label:'≤ 0.20', txt:'Très performant', U:0.20 },
+    { label:'0.20 – 0.40', txt:'Bon', U:0.35 },
+    { label:'0.40 – 0.70', txt:'Moyen', U:0.55 },
+    { label:'0.70 – 1.20', txt:'Faible', U:0.95 },
+    { label:'1.20 – 2.00', txt:'Mauvais', U:1.60 },
+    { label:'> 2.00', txt:'Très mauvais', U:2.50 },
+    { label:'—', txt:'Non renseigné', U:null },
+  ];
+
+  wrap.innerHTML = rows.map(r => {
+    let color = '#334455';
+    if (r.U !== null) {
+      const c = uToColor(r.U);
+      color = '#' + [c.r, c.g, c.b]
+        .map(v => Math.round(v * 255).toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    return '<div style="display:grid;grid-template-columns:48px 1fr;gap:8px;align-items:center">' +
+      '<div style="height:10px;border-radius:5px;background:' + color + ';border:1px solid rgba(255,255,255,.18)"></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;white-space:nowrap">' +
+        '<span style="color:rgba(255,255,255,.72)">' + r.label + '</span>' +
+        '<span style="color:rgba(255,255,255,.42)">' + r.txt + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
 
 function setupRaycaster3d() {
   const canvas  = document.getElementById('canvas3d');
