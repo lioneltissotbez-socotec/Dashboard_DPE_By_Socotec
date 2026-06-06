@@ -292,6 +292,15 @@ tr:hover td{background:var(--surface2)}
         <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
       </div>
 
+      <!-- Mode recherche exacte -->
+      <div style="display:flex;align-items:center;gap:10px;margin:-2px 0 14px;padding:10px 14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.16);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="f-exact-addr" style="width:auto">
+          Recherche exacte adresse
+        </label>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Utilise des filtres exclusifs : adresse + code postal/ville + filtres actifs.</span>
+      </div>
+
       <!-- Accordéon filtres -->
       <details id="filter-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
         <summary style="padding:12px 18px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);display:flex;align-items:center;gap:8px;list-style:none">
@@ -1153,23 +1162,60 @@ function buildQsFilters() {
   return parts.join(' AND ');
 }
 
+function escapeQsValue(v) {
+  return String(v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
+}
+
+function buildExactAddressQs(num, rue, ville) {
+  const adr = escapeQsValue([num, rue].filter(Boolean).join(' '));
+  const loc = escapeQsValue(ville);
+  const parts = [];
+
+  if (adr) {
+    // On interroge les deux champs courants, car selon les DPE l'adresse complète peut être dans adresse_brut ou adresse_ban.
+    parts.push('(adresse_brut:"' + adr + '" OR adresse_ban:"' + adr + '")');
+  }
+
+  if (/^\d{5}$/.test(loc)) {
+    parts.push('code_postal_ban:' + loc);
+  } else if (loc) {
+    parts.push('nom_commune_ban:"' + loc + '"');
+  }
+
+  return parts.join(' AND ');
+}
+
 async function searchAddr() {
   const num   = document.getElementById('inp-num').value.trim();
   const rue   = document.getElementById('inp-rue').value.trim();
   const ville = document.getElementById('inp-ville').value.trim();
   const size  = document.getElementById('inp-addr-size').value;
   const sort  = document.getElementById('f-sort').value;
+  const exact = document.getElementById('f-exact-addr')?.checked;
 
   if (!rue && !ville && !num) {
     setStatus('addr', 'err', '⚠ Renseignez au moins une ville ou une rue.');
     return;
   }
 
+  const qsFilters = buildQsFilters();
   const q = [num, rue, ville].filter(Boolean).join(' ');
-  const params = { q, size, sort };
+  let params = { size, sort };
 
-  const qs = buildQsFilters();
-  if (qs) params.qs = qs;
+  if (exact) {
+    if (!num || !rue || !ville) {
+      setStatus('addr', 'err', '⚠ En recherche exacte, renseignez le numéro, la rue et la ville ou le code postal.');
+      return;
+    }
+
+    const exactQs = buildExactAddressQs(num, rue, ville);
+    params.qs = [exactQs, qsFilters].filter(Boolean).join(' AND ');
+
+    // En mode exact, on n'utilise volontairement pas q : sinon l'API élargit la recherche en plein texte.
+  } else {
+    params.q = q;
+    if (qsFilters) params.qs = qsFilters;
+  }
 
   const url = buildUrl(params);
   document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
