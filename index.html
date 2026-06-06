@@ -1771,16 +1771,29 @@ function load3dXml(input) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(e.target.result, 'application/xml');
       if (doc.querySelector('parsererror')) throw new Error('XML invalide');
-      dpe3dData = parseXmlDpe(doc); // réutilise parseXmlDpe du plan réno
-      build3dScene(dpe3dData);
-      clearStatus('3d');
-      document.getElementById('drop3d').innerHTML =
-        '<div style="font-size:16px;color:var(--accent)">✅ ' + file.name + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + (dpe3dData.meta.adresse||'') + ' · ' + (dpe3dData.meta.numero_dpe||'') + '</div>';
-      document.getElementById('controls3d').style.display = 'flex';
-      document.getElementById('canvas3d-wrap').style.display = 'block';
-      document.getElementById('parois3d-stats').style.display = 'block';
-      renderParoisStats(dpe3dData);
+      dpe3dData = parseXmlDpe(doc);
+
+      // Rendre le panel visible AVANT de construire la scène
+      // (le canvas a besoin d'une largeur réelle pour le renderer)
+      const el_drop    = document.getElementById('drop3d');
+      const el_ctrl    = document.getElementById('controls3d');
+      const el_wrap    = document.getElementById('canvas3d-wrap');
+      const el_stats   = document.getElementById('parois3d-stats');
+
+      if (el_ctrl)  el_ctrl.style.display  = 'flex';
+      if (el_wrap)  el_wrap.style.display  = 'block';
+      if (el_stats) el_stats.style.display = 'block';
+
+      // Laisser le DOM se recalculer avant de créer le renderer
+      setTimeout(() => {
+        build3dScene(dpe3dData);
+        clearStatus('3d');
+        if (el_drop) el_drop.innerHTML =
+          '<div style="font-size:16px;color:var(--accent)">✅ ' + file.name + '</div>' +
+          '<div style="font-size:11px;color:var(--muted);margin-top:4px">' +
+          (dpe3dData.meta.adresse||'') + ' · ' + (dpe3dData.meta.numero_dpe||'') + '</div>';
+        renderParoisStats(dpe3dData);
+      }, 50);
     } catch(err) {
       setStatus('3d', 'err', '✖ ' + err.message);
     }
@@ -2025,6 +2038,7 @@ function addCompassLabel(scene, x, z, text, color) {
 
 function buildLegend3d(U_max) {
   const wrap = document.getElementById('legend-items');
+  if (!wrap) return;
   wrap.innerHTML = '';
   const steps = [0, U_max*0.25, U_max*0.5, U_max*0.75, U_max];
   const labels = ['Très bien', 'Bien', 'Moyen', 'Mauvais', 'Très mauvais'];
@@ -2047,6 +2061,7 @@ function setupRaycaster3d() {
   const allMeshes = [...wallMeshes, ...windowMeshes];
 
   canvas.addEventListener('mousemove', e => {
+    if (!tooltip) return;
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2075,7 +2090,7 @@ function setupRaycaster3d() {
       });
       hits[0].object.material.color.multiplyScalar(1.4);
     } else {
-      tooltip.style.display = 'none';
+      if (tooltip) tooltip.style.display = 'none';
       allMeshes.forEach(m => {
         if (m.userData.originalColor) m.material.color.copy(m.userData.originalColor);
       });
@@ -2164,6 +2179,7 @@ function animate3d() {
 
 function renderParoisStats(d) {
   const el = document.getElementById('parois3d-stats');
+  if (!el) return;
   const ORIENT_LABEL = {N:'Nord',E:'Est',S:'Sud',O:'Ouest'};
   const ETIQ_U = u => u < 0.3?'A':u<0.6?'B':u<1.0?'C':u<1.5?'D':u<2.0?'E':'F/G';
   
