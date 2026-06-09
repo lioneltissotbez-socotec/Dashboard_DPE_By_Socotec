@@ -6,6 +6,7 @@
 <title>ADEME DPE Explorer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <style>
 :root {
   --bg: #0e0f11;
@@ -171,6 +172,18 @@ tr:hover td{background:var(--surface2)}
 
 .btn3d{font-family:var(--mono);font-size:11px;padding:4px 12px;border-radius:4px;border:1px solid var(--border2);color:var(--muted);background:none;cursor:pointer;transition:all .12s}
 .btn3d:hover,.btn3d.active{background:var(--accent);color:#0e0f11;border-color:var(--accent)}
+
+/* CARTE DPE PROXIMITÉ */
+.addr-map-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+#addr-map{height:520px;background:#101217}
+.addr-map-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted)}
+.dpe-marker{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:800;border:2px solid rgba(255,255,255,.95);box-shadow:0 3px 10px rgba(0,0,0,.35);color:#101010}
+.dpe-marker.multi{font-size:11px;background:#22d3ee;color:#071014}
+.addr-target-marker{width:18px;height:18px;border-radius:50%;background:#22d3ee;border:3px solid white;box-shadow:0 0 0 3px rgba(34,211,238,.25)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#16181c;color:#e8eaf0;border:1px solid rgba(255,255,255,.12)}
+.leaflet-popup-content{font-family:var(--mono);font-size:11px;line-height:1.5;margin:10px 12px}
+.map-popup-btn{display:block;width:100%;margin-top:6px;padding:5px 8px;border-radius:5px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#4ade80;font-family:var(--mono);font-size:10px;cursor:pointer;text-align:left}
+
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -201,6 +214,7 @@ tr:hover td{background:var(--surface2)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
 <div class="shell">
@@ -292,11 +306,29 @@ tr:hover td{background:var(--surface2)}
         <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
       </div>
 
+      <!-- Mode carte proximité -->
+      <div style="display:flex;align-items:center;gap:14px;margin:-2px 0 14px;padding:10px 14px;background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:8px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="f-map-nearby" checked style="width:auto">
+          Mode carte proximité
+        </label>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Géocode l'adresse, affiche les DPE proches sur une carte, puis laisse choisir la pastille.</span>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          Rayon
+          <select id="f-map-radius" style="width:auto;font-size:11px;padding:5px 8px">
+            <option value="30">30 m</option>
+            <option value="50" selected>50 m</option>
+            <option value="100">100 m</option>
+            <option value="200">200 m</option>
+          </select>
+        </label>
+      </div>
+
       <!-- Mode recherche exacte -->
       <div style="display:flex;align-items:center;gap:10px;margin:-2px 0 14px;padding:10px 14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.16);border-radius:8px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
           <input type="checkbox" id="f-exact-addr" style="width:auto">
-          Recherche exacte adresse
+          Recherche exacte adresse texte
         </label>
         <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Mode robuste : interroge l'ADEME puis filtre localement sur numéro + rue + CP/ville. Logs visibles dans la console.</span>
       </div>
@@ -421,6 +453,13 @@ tr:hover td{background:var(--surface2)}
 
       <div class="url-bar" id="url-addr">—</div>
       <div class="status" id="st-addr"></div>
+      <div id="addr-map-card" class="addr-map-card" style="display:none">
+        <div class="addr-map-head">
+          <span>🗺️ Carte DPE à proximité</span>
+          <span id="addr-map-info" style="color:var(--accent2);margin-left:auto">—</span>
+        </div>
+        <div id="addr-map"></div>
+      </div>
       <div id="result-addr"></div>
     </div>
 
@@ -1292,9 +1331,15 @@ async function searchAddr() {
   const size  = document.getElementById('inp-addr-size').value;
   const sort  = document.getElementById('f-sort').value;
   const exact = document.getElementById('f-exact-addr')?.checked;
+  const mapMode = document.getElementById('f-map-nearby')?.checked;
 
   if (!rue && !ville && !num) {
     setStatus('addr', 'err', '⚠ Renseignez au moins une ville ou une rue.');
+    return;
+  }
+
+  if (mapMode) {
+    await searchAddrNearbyMap(num, rue, ville, size, sort);
     return;
   }
 
@@ -1307,9 +1352,6 @@ async function searchAddr() {
       setStatus('addr', 'err', '⚠ En recherche exacte, renseignez le numéro, la rue et la ville ou le code postal.');
       return;
     }
-
-    // Recherche exacte robuste : requête volontairement large sur la rue + CP,
-    // puis filtrage local strict sur numéro + rue + CP/ville.
     params = buildExactAddressCandidateParams(num, rue, ville, size, sort, qsFilters);
   } else {
     params.q = q;
@@ -1318,6 +1360,7 @@ async function searchAddr() {
 
   const url = buildUrl(params);
   document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+  hideAddrMap();
 
   console.groupCollapsed('[DPE Explorer] Recherche adresse' + (exact ? ' exacte' : ''));
   console.log('Saisie utilisateur', { numero: num, rue: rue, ville: ville, exact: exact });
@@ -1335,7 +1378,6 @@ async function searchAddr() {
     let before = data.results || [];
     let filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
 
-    // Fallback : si la requête avec numéro ne ramène rien, on relance rue + CP, puis filtre localement.
     if (!filtered.length) {
       const fallbackParams = buildExactAddressFallbackParams(num, rue, ville, size, sort);
       const fallbackUrl = buildUrl(fallbackParams);
@@ -1367,6 +1409,213 @@ async function searchAddr() {
   console.groupEnd();
   renderAddrResults(renderData, q);
 }
+
+let addrLeafletMap = null;
+let addrLeafletLayer = null;
+
+function hideAddrMap() {
+  const card = document.getElementById('addr-map-card');
+  if (card) card.style.display = 'none';
+}
+
+function extractCpFromInput(v) {
+  const m = String(v || '').match(/\b\d{5}\b/);
+  return m ? m[0] : '';
+}
+
+function cleanCityFromInput(v) {
+  return String(v || '').replace(/\b\d{5}\b/g, '').trim();
+}
+
+function dpeLatLon(d) {
+  const gp = d._geopoint || '';
+  if (!gp || !String(gp).includes(',')) return null;
+  const parts = String(gp).split(',');
+  const lat = parseFloat(parts[0]);
+  const lon = parseFloat(parts[1]);
+  if (isNaN(lat) || isNaN(lon)) return null;
+  return { lat, lon };
+}
+
+function distanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = v => v * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function dpeMarkerColor(e) {
+  return { A:'#4ade80', B:'#86efac', C:'#d9ef28', D:'#fde047', E:'#fb923c', F:'#f97316', G:'#ef4444' }[e] || '#94a3b8';
+}
+
+async function fetchJsonSmart(params) {
+  const urls = [];
+  const proxied = buildUrl(params);
+  if (proxied) urls.push({ label:'proxy', url: proxied });
+  urls.push({ label:'ademe-direct', url: displayUrl(params) });
+  let lastErr = null;
+  for (const u of urls) {
+    try {
+      console.log('[DPE Explorer] Fetch', u.label, u.url);
+      const r = await fetch(u.url, { headers: { Accept:'application/json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + r.statusText);
+      return await r.json();
+    } catch(e) {
+      lastErr = e;
+      console.warn('[DPE Explorer] Echec fetch', u.label, e.message);
+    }
+  }
+  throw lastErr || new Error('Aucune réponse API');
+}
+
+async function geocodeAddressBAN(query) {
+  const url = 'https://api-adresse.data.gouv.fr/search/?limit=1&q=' + encodeURIComponent(query);
+  console.log('[DPE Explorer] Géocodage BAN', url);
+  const r = await fetch(url, { headers: { Accept:'application/json' } });
+  if (!r.ok) throw new Error('Géocodage BAN HTTP ' + r.status);
+  const data = await r.json();
+  const f = data.features && data.features[0];
+  if (!f) throw new Error('Adresse introuvable dans la BAN');
+  return { label: f.properties.label, score: f.properties.score, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], postcode: f.properties.postcode || extractCpFromInput(query), city: f.properties.city || cleanCityFromInput(query) };
+}
+
+function passesAdvancedFiltersLocal(d) {
+  if (activeFilters.etiq_dpe.size && !activeFilters.etiq_dpe.has(String(d.etiquette_dpe || ''))) return false;
+  if (activeFilters.etiq_ges.size && !activeFilters.etiq_ges.has(String(d.etiquette_ges || ''))) return false;
+  if (activeFilters.periode.size && !activeFilters.periode.has(String(d.periode_construction || ''))) return false;
+  if (activeFilters.energie.size && !activeFilters.energie.has(String(d.type_energie_principale_chauffage || ''))) return false;
+  if (activeFilters.type_hab.size) {
+    const t = normAddr(d.type_batiment || '');
+    const ok = [...activeFilters.type_hab].some(v => t.includes(normAddr(v)));
+    if (!ok) return false;
+  }
+  const dMin = document.getElementById('f-date-min').value;
+  const dMax = document.getElementById('f-date-max').value;
+  const date = d.date_etablissement_dpe || '';
+  if (dMin && (!date || date < dMin)) return false;
+  if (dMax && (!date || date > dMax)) return false;
+  const sMin = parseFloat(document.getElementById('f-surf-min').value || '');
+  const sMax = parseFloat(document.getElementById('f-surf-max').value || '');
+  const surf = parseFloat(d.surface_habitable_logement || '');
+  if (!isNaN(sMin) && (isNaN(surf) || surf < sMin)) return false;
+  if (!isNaN(sMax) && (isNaN(surf) || surf > sMax)) return false;
+  return true;
+}
+
+async function searchAddrNearbyMap(num, rue, ville, size, sort) {
+  const radius = parseInt(document.getElementById('f-map-radius')?.value || '50', 10);
+  const cp = extractCpFromInput(ville);
+  const fullAddress = [num, rue, ville].filter(Boolean).join(' ');
+  const streetCpQuery = [rue, cp || ville].filter(Boolean).join(' ');
+  if (!rue || !ville) {
+    setStatus('addr', 'err', '⚠ En mode carte, renseignez au moins la rue et la ville ou le code postal.');
+    return;
+  }
+  hideAddrMap();
+  document.getElementById('result-addr').innerHTML = '';
+  setStatus('addr', 'info', '<span class="spin">↻</span> &nbsp;Géocodage de l\'adresse puis recherche des DPE proches...');
+  console.groupCollapsed('[DPE Explorer] Mode carte proximité');
+  console.log('Saisie utilisateur', { numero:num, rue, ville, radius });
+  try {
+    const center = await geocodeAddressBAN(fullAddress);
+    console.log('Adresse BAN retenue', center);
+    const attempts = [
+      { q: streetCpQuery, size:'500', sort },
+      { q: [rue, center.city || cleanCityFromInput(ville)].filter(Boolean).join(' '), size:'500', sort },
+      { q: cp || center.postcode || ville, size:'1000', sort }
+    ];
+    const seen = new Set();
+    let candidates = [];
+    for (const params of attempts) {
+      if (!params.q) continue;
+      const key = JSON.stringify(params);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
+        const data = await fetchJsonSmart(params);
+        const rows = data.results || [];
+        console.log('Candidats ADEME pour', params, rows.length, 'sur total', data.total);
+        candidates = candidates.concat(rows);
+      } catch(e) { console.warn('Tentative ADEME échouée', params, e.message); }
+    }
+    const byId = new Map();
+    candidates.forEach(d => { const id = d.numero_dpe || d._id || JSON.stringify(d).slice(0,80); if (!byId.has(id)) byId.set(id, d); });
+    candidates = [...byId.values()];
+    const near = candidates.map(d => {
+      const ll = dpeLatLon(d);
+      if (!ll) return null;
+      return Object.assign({}, d, { _distance_m: distanceMeters(center.lat, center.lon, ll.lat, ll.lon) });
+    }).filter(Boolean).filter(d => d._distance_m <= radius).filter(passesAdvancedFiltersLocal).sort((a,b) => a._distance_m - b._distance_m);
+    console.log('Candidats uniques', candidates.length);
+    console.log('DPE dans le rayon après filtres', near.length);
+    console.table(near.map(d => Object.assign(compactDpeForLog(d), { distance_m: Math.round(d._distance_m), geopoint: d._geopoint })));
+    clearStatus('addr');
+    const renderData = { total: near.length, results: near.slice(0, parseInt(size || '20', 10)), _mapSearch:true, _mapCenter:center, _mapRadius:radius, _mapCandidates:candidates.length };
+    renderDpeMap(near, center, radius);
+    renderAddrResults(renderData, fullAddress);
+  } catch(e) {
+    setStatus('addr', 'err', '✖ ' + e.message);
+    console.error(e);
+  } finally { console.groupEnd(); }
+}
+
+function renderDpeMap(results, center, radius) {
+  const card = document.getElementById('addr-map-card');
+  const info = document.getElementById('addr-map-info');
+  if (!card || !window.L) return;
+  card.style.display = 'block';
+  if (info) info.textContent = results.length + ' DPE dans ' + radius + ' m · ' + center.label;
+  if (!addrLeafletMap) {
+    addrLeafletMap = L.map('addr-map', { zoomControl:true, scrollWheelZoom:true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:20, attribution:'&copy; OpenStreetMap' }).addTo(addrLeafletMap);
+  }
+  if (addrLeafletLayer) addrLeafletLayer.clearLayers();
+  addrLeafletLayer = L.layerGroup().addTo(addrLeafletMap);
+  const targetIcon = L.divIcon({ className:'', html:'<div class="addr-target-marker"></div>', iconSize:[24,24], iconAnchor:[12,12] });
+  L.marker([center.lat, center.lon], { icon: targetIcon }).addTo(addrLeafletLayer).bindPopup('<strong>Adresse recherchée</strong><br>' + center.label);
+  L.circle([center.lat, center.lon], { radius, color:'#22d3ee', weight:1, fillColor:'#22d3ee', fillOpacity:0.08 }).addTo(addrLeafletLayer);
+  const groups = new Map();
+  results.forEach(d => {
+    const ll = dpeLatLon(d); if (!ll) return;
+    const key = ll.lat.toFixed(6) + ',' + ll.lon.toFixed(6);
+    if (!groups.has(key)) groups.set(key, { lat:ll.lat, lon:ll.lon, rows:[] });
+    groups.get(key).rows.push(d);
+  });
+  groups.forEach(g => {
+    const rows = g.rows.sort((a,b) => (a.date_etablissement_dpe < b.date_etablissement_dpe ? 1 : -1));
+    const first = rows[0];
+    const label = rows.length > 1 ? rows.length : (first.etiquette_dpe || '?');
+    const color = rows.length > 1 ? '#22d3ee' : dpeMarkerColor(first.etiquette_dpe);
+    const cls = rows.length > 1 ? 'dpe-marker multi' : 'dpe-marker';
+    const icon = L.divIcon({ className:'', html:'<div class="' + cls + '" style="background:' + color + '">' + label + '</div>', iconSize:[34,34], iconAnchor:[17,17] });
+    L.marker([g.lat, g.lon], { icon }).addTo(addrLeafletLayer).bindPopup(buildMapPopup(rows), { maxWidth:340 });
+  });
+  const bounds = L.latLngBounds([[center.lat, center.lon]]);
+  results.forEach(d => { const ll = dpeLatLon(d); if (ll) bounds.extend([ll.lat, ll.lon]); });
+  addrLeafletMap.fitBounds(bounds.pad(0.25));
+  setTimeout(() => addrLeafletMap.invalidateSize(), 80);
+}
+
+function buildMapPopup(rows) {
+  let html = '<div style="min-width:230px">';
+  html += '<div style="font-weight:700;color:#22d3ee;margin-bottom:6px">' + rows.length + ' DPE à cette position</div>';
+  rows.forEach(d => {
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+    html += '<div style="border-top:1px solid rgba(255,255,255,.12);padding-top:6px;margin-top:6px">';
+    html += '<strong>DPE ' + (d.etiquette_dpe || '?') + '</strong> · GES ' + (d.etiquette_ges || '?') + ' · ' + (d.date_etablissement_dpe || 'date ?') + '<br>';
+    html += (d.surface_habitable_logement ? d.surface_habitable_logement + ' m² · ' : '') + (d.type_batiment || '') + '<br>';
+    html += '<span style="color:#94a3b8">' + (d.adresse_ban || d.adresse_complete_brut || d.adresse_brut || '') + '</span><br>';
+    html += '<span style="color:#94a3b8">Distance : ' + Math.round(d._distance_m || 0) + ' m · N° ' + (d.numero_dpe || '') + '</span>';
+    html += '<button class="map-popup-btn" onclick="loadDpeFromAddrB64(\'' + b64 + '\')">🔍 Ouvrir la fiche complète</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
 
 function renderAddrResults(data, query) {
   const el = document.getElementById('result-addr');
@@ -1562,6 +1811,8 @@ window.toggleFilter       = toggleFilter;
 window.resetFilters       = resetFilters;
 window.updateFilterBadge  = updateFilterBadge;
 window.searchAddr         = searchAddr;
+window.searchAddrNearbyMap = searchAddrNearbyMap;
+window.renderDpeMap       = renderDpeMap;
 
 /* ─────────────────────────────────────────
    PLAN DE RÉNOVATION — Import XML
