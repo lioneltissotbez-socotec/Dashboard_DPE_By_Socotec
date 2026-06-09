@@ -1494,6 +1494,27 @@ async function geocodeAddressBAN(query) {
   };
 }
 
+
+function escapeQsValue(v) {
+  return String(v || '').replace(/\/g, '\\').replace(/"/g, '\"').trim();
+}
+
+function titleCaseStreetForAdeme(rue) {
+  const small = new Set(['de','du','des','la','le','les','l','d','a','au','aux','et']);
+  return String(rue || '')
+    .toLowerCase()
+    .replace(/[’']/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => small.has(w) && i > 0 ? w : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+    .replace(/^rue/i, 'Rue')
+    .replace(/^avenue/i, 'Avenue')
+    .replace(/^boulevard/i, 'Boulevard')
+    .replace(/^impasse/i, 'Impasse')
+    .replace(/^chemin/i, 'Chemin');
+}
+
 function passesAdvancedFiltersLocal(d) {
   if (activeFilters.etiq_dpe.size && !activeFilters.etiq_dpe.has(String(d.etiquette_dpe || ''))) return false;
   if (activeFilters.etiq_ges.size && !activeFilters.etiq_ges.has(String(d.etiquette_ges || ''))) return false;
@@ -1537,22 +1558,29 @@ async function searchAddrNearbyMap(num, rue, ville, size, sort) {
     const effectiveCp = cp || center.postcode || '';
     const effectiveCity = center.city || cleanCityFromInput(ville);
 
-    // Stratégie robuste :
-    // 1) identifiant BAN exact si disponible : c'est le meilleur lien entre BAN et ADEME.
-    // 2) tous les DPE du code postal, puis filtrage local par distance GPS.
-    // 3) recherches texte de secours.
-    // On évite de limiter à 500/1000 résultats, sinon les DPE plus anciens sont noyés dans les résultats récents.
+    // Stratégie optimisée v3 :
+    // 1) identifiant BAN exact si disponible : récupère directement les DPE à l'adresse BAN.
+    // 2) nom_rue_ban + code_postal_ban en qs : récupère uniquement la rue dans le CP, donc beaucoup plus léger.
+    // 3) adresse_ban/adresse_complete_brut en qs puis q texte en secours.
+    // IMPORTANT : les tentatives qs étaient ignorées dans la v2 par un `if (!params.q) continue;`.
+    const streetNormForQs = titleCaseStreetForAdeme(rue);
+    const streetQsParts = [];
+    if (streetNormForQs && effectiveCp) {
+      streetQsParts.push('code_postal_ban:' + effectiveCp + ' AND nom_rue_ban:"' + escapeQsValue(streetNormForQs) + '"');
+      streetQsParts.push('code_postal_ban:' + effectiveCp + ' AND adresse_ban:"' + escapeQsValue(streetNormForQs) + '"');
+      streetQsParts.push('code_postal_ban:' + effectiveCp + ' AND adresse_complete_brut:"' + escapeQsValue(streetNormForQs) + '"');
+    }
+
     const attempts = [
-      center.banId ? { qs: 'identifiant_ban:' + center.banId, size:'10000' } : null,
-      effectiveCp ? { qs: 'code_postal_ban:' + effectiveCp, size:'10000' } : null,
-      effectiveCp ? { q: effectiveCp, size:'10000' } : null,
-      { q: [rue, effectiveCity].filter(Boolean).join(' '), size:'10000' },
-      { q: streetCpQuery, size:'10000' }
+      center.banId ? { qs: 'identifiant_ban:' + center.banId, size:'200' } : null,
+      ...streetQsParts.map(qs => ({ qs, size:'1000' })),
+      { q: streetCpQuery, size:'1000' },
+      { q: [rue, effectiveCity].filter(Boolean).join(' '), size:'1000' }
     ].filter(Boolean);
+
     const seen = new Set();
     let candidates = [];
     for (const params of attempts) {
-      if (!params.q) continue;
       const key = JSON.stringify(params);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1562,6 +1590,19 @@ async function searchAddrNearbyMap(num, rue, ville, size, sort) {
         const rows = data.results || [];
         console.log('Candidats ADEME pour', params, rows.length, 'sur total', data.total);
         candidates = candidates.concat(rows);
+
+        // Si la requête ciblée rue + CP donne déjà assez de candidats proches, inutile d'aller chercher plus large.
+        const tempUnique = new Map();
+        candidates.forEach(d => { const id = d.numero_dpe || d._id || JSON.stringify(d).slice(0,80); if (!tempUnique.has(id)) tempUnique.set(id, d); });
+        const tempNear = [...tempUnique.values()].map(d => {
+          const ll = dpeLatLon(d);
+          if (!ll) return null;
+          return Object.assign({}, d, { _distance_m: distanceMeters(center.lat, center.lon, ll.lat, ll.lon) });
+        }).filter(Boolean).filter(d => d._distance_m <= radius);
+        if (tempNear.length > 0 && params.qs) {
+          console.log('Arrêt anticipé : candidats proches trouvés avec requête ciblée', tempNear.length);
+          break;
+        }
       } catch(e) { console.warn('Tentative ADEME échouée', params, e.message); }
     }
     const byId = new Map();
