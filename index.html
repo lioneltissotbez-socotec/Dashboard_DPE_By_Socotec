@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADEME DPE Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<link rel="stylesheet" href="styles.css">
+<!-- Bibliothèques JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">DPE Explorer</div>
+      <div class="logo-sub">API ADEME · Open Data</div>
+    </div>
+    <div class="nav-section">Recherche</div>
+    <div class="nav-item active" onclick="show('search')">
+      <span class="ico">🔍</span> Recherche par N° DPE
+    </div>
+    <div class="nav-item" onclick="show('addr')">
+      <span class="ico">📍</span> Recherche par adresse
+    </div>
+    <div class="nav-section">Outils</div>
+    <div class="nav-item" onclick="show('reno')">
+      <span class="ico">🔧</span> Plan de rénovation
+    </div>
+    <div class="nav-item" onclick="show('view3d')">
+      <span class="ico">🏠</span> Vue 3D thermique
+    </div>
+    <div class="nav-section">Analyse</div>
+    <div class="nav-item" onclick="show('stats')">
+      <span class="ico">📊</span> Stats par ville
+    </div>
+    <div class="nav-item" onclick="show('raw')">
+      <span class="ico">⌨️</span> Requête libre
+    </div>
+    <div class="api-info">
+      <div class="api-pill">
+        <div class="pulse"></div>
+        API ADEME live
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:var(--mono)">data.ademe.fr · 15M DPE</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- PANEL : RECHERCHE DPE -->
+    <div class="panel active" id="panel-search">
+      <h1>Recherche DPE</h1>
+      <p class="subtitle">Retrouve un diagnostic à partir de son numéro ADEME officiel</p>
+      <div class="row">
+        <div class="field">
+          <label>Numéro DPE (N°ADEME)</label>
+          <input type="text" id="inp-dpe" value="2559E3512532V" placeholder="ex : 2559E3512532V"
+                 onkeydown="if(event.key==='Enter')searchDpe()">
+        </div>
+        <button class="btn btn-go" id="btn-search" onclick="searchDpe()">→ Rechercher</button>
+      </div>
+      <div class="url-bar" id="url-search">—</div>
+      <div class="status" id="st-search"></div>
+      <div id="result-search"></div>
+    </div>
+
+    <!-- PANEL : RECHERCHE ADRESSE -->
+    <div class="panel" id="panel-addr">
+      <h1>Recherche par adresse</h1>
+      <p class="subtitle">Retrouve et filtre les DPE par adresse, classement, période, énergie...</p>
+
+      <!-- Ligne adresse -->
+      <div class="row" style="margin-bottom:10px">
+        <div class="field" style="max-width:120px">
+          <label>Numéro</label>
+          <input type="text" id="inp-num" placeholder="ex : 30" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field">
+          <label>Rue</label>
+          <input type="text" id="inp-rue" placeholder="ex : Rue Jean Becaert" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:220px">
+          <label>Ville ou code postal</label>
+          <input type="text" id="inp-ville" placeholder="ex : Dunkerque ou 59140" onkeydown="if(event.key==='Enter')searchAddr()">
+        </div>
+        <div class="field" style="max-width:100px">
+          <label>Résultats</label>
+          <select id="inp-addr-size">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
+      </div>
+
+      <!-- Mode carte proximité -->
+      <div style="display:flex;align-items:center;gap:14px;margin:-2px 0 14px;padding:10px 14px;background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:8px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="f-map-nearby" checked style="width:auto">
+          Mode carte proximité
+        </label>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Géocode l'adresse, affiche les DPE proches sur une carte, puis laisse choisir la pastille.</span>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          Rayon
+          <select id="f-map-radius" style="width:auto;font-size:11px;padding:5px 8px">
+            <option value="30">30 m</option>
+            <option value="50" selected>50 m</option>
+            <option value="100">100 m</option>
+            <option value="200">200 m</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- Mode recherche exacte -->
+      <div style="display:flex;align-items:center;gap:10px;margin:-2px 0 14px;padding:10px 14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.16);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="f-exact-addr" style="width:auto">
+          Recherche exacte adresse texte
+        </label>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Mode robuste : interroge l'ADEME puis filtre localement sur numéro + rue + CP/ville. Logs visibles dans la console.</span>
+      </div>
+
+      <!-- Accordéon filtres -->
+      <details id="filter-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
+        <summary style="padding:12px 18px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);display:flex;align-items:center;gap:8px;list-style:none">
+          <span>⚙</span> Filtres avancés
+          <span id="filter-badge" style="display:none;background:var(--accent);color:#0e0f11;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:700">0</span>
+          <span style="margin-left:auto;color:var(--muted)">▼</span>
+        </summary>
+        <div style="padding:16px 18px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;border-top:1px solid var(--border)">
+
+          <!-- Étiquette DPE -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette DPE</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-dpe">
+              <button class="f-btn" data-group="etiq_dpe" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_dpe" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Étiquette GES -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Étiquette GES</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px" id="f-etiq-ges">
+              <button class="f-btn" data-group="etiq_ges" data-val="A" onclick="toggleFilter(this)" style="background:#1a5c3a;color:#4ade80">A</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="B" onclick="toggleFilter(this)" style="background:#2d5e16;color:#86efac">B</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="C" onclick="toggleFilter(this)" style="background:#4d6b0f;color:#bef264">C</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="D" onclick="toggleFilter(this)" style="background:#7c5a08;color:#fde68a">D</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="E" onclick="toggleFilter(this)" style="background:#7c3a08;color:#fdba74">E</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="F" onclick="toggleFilter(this)" style="background:#7c1212;color:#fca5a5">F</button>
+              <button class="f-btn" data-group="etiq_ges" data-val="G" onclick="toggleFilter(this)" style="background:#500d0d;color:#ef4444">G</button>
+            </div>
+          </div>
+
+          <!-- Période construction -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Période construction</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-periode">
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Avant 1948" onclick="toggleFilter(this)">Avant 1948</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1948-1974" onclick="toggleFilter(this)">1948-1974</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1975-1981" onclick="toggleFilter(this)">1975-1981</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1982-1989" onclick="toggleFilter(this)">1982-1989</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="1990-2000" onclick="toggleFilter(this)">1990-2000</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="2001-2012" onclick="toggleFilter(this)">2001-2012</button>
+              <button class="f-btn f-btn-sm" data-group="periode" data-val="Après 2012" onclick="toggleFilter(this)">Après 2012</button>
+            </div>
+          </div>
+
+          <!-- Type habitation -->
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:8px">Type habitation</div>
+            <div style="display:flex;flex-direction:column;gap:4px" id="f-type-hab">
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="appartement" onclick="toggleFilter(this)">🏢 Appartement</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="maison" onclick="toggleFilter(this)">🏠 Maison</button>
+              <button class="f-btn f-btn-sm" data-group="type_hab" data-val="immeuble" onclick="toggleFilter(this)">🏬 Immeuble</button>
+            </div>
+          </div>
+
+          <!-- Colonne droite : énergie + dates + surface -->
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <!-- Énergie chauffage -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Énergie chauffage</div>
+              <div style="display:flex;flex-direction:column;gap:4px" id="f-energie">
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Gaz naturel" onclick="toggleFilter(this)">🔵 Gaz naturel</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Électricité" onclick="toggleFilter(this)">⚡ Électricité</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Fioul domestique" onclick="toggleFilter(this)">🟤 Fioul</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Bois" onclick="toggleFilter(this)">🪵 Bois</button>
+                <button class="f-btn f-btn-sm" data-group="energie" data-val="Réseau de chaleur" onclick="toggleFilter(this)">🌡 Réseau chaleur</button>
+              </div>
+            </div>
+
+            <!-- Plage de dates du DPE -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Date établissement DPE</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="date" id="f-date-min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="date" id="f-date-max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+            <!-- Surface -->
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono);margin-bottom:6px">Surface (m²)</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input type="number" id="f-surf-min" placeholder="Min" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+                <span style="color:var(--muted);font-size:11px">→</span>
+                <input type="number" id="f-surf-max" placeholder="Max" style="font-size:11px;padding:5px 8px;flex:1" onchange="updateFilterBadge()">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Pied filtres : tri + reset -->
+        <div style="padding:10px 18px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:var(--mono)">Trier par</div>
+          <select id="f-sort" style="font-size:12px;padding:5px 10px;flex:none;width:auto" onchange="updateFilterBadge()">
+            <option value="-date_etablissement_dpe">Date DPE (récent)</option>
+            <option value="date_etablissement_dpe">Date DPE (ancien)</option>
+            <option value="etiquette_dpe">Étiquette (A→G)</option>
+            <option value="-etiquette_dpe">Étiquette (G→A)</option>
+            <option value="conso_5_usages_par_m2_ef">Conso EF (croissant)</option>
+            <option value="-conso_5_usages_par_m2_ef">Conso EF (décroissant)</option>
+            <option value="cout_total_5_usages">Coût annuel (croissant)</option>
+            <option value="-cout_total_5_usages">Coût annuel (décroissant)</option>
+            <option value="surface_habitable_logement">Surface (croissante)</option>
+            <option value="-surface_habitable_logement">Surface (décroissante)</option>
+          </select>
+          <button onclick="resetFilters()" style="font-family:var(--mono);font-size:11px;padding:5px 12px;background:none;border:1px solid var(--border2);color:var(--muted);border-radius:var(--r2);cursor:pointer;margin-left:auto">✕ Réinitialiser les filtres</button>
+        </div>
+      </details>
+
+      <div class="url-bar" id="url-addr">—</div>
+      <div class="status" id="st-addr"></div>
+      <div id="addr-map-card" class="addr-map-card" style="display:none">
+        <div class="addr-map-head">
+          <span>🗺️ Carte DPE à proximité</span>
+          <span id="addr-map-info" style="color:var(--accent2);margin-left:auto">—</span>
+        </div>
+        <div id="addr-map"></div>
+      </div>
+      <div id="result-addr"></div>
+    </div>
+
+    <!-- PANEL : PLAN DE RÉNOVATION -->
+    <div class="panel" id="panel-reno">
+      <h1>Plan de rénovation</h1>
+      <p class="subtitle">Importez un fichier XML ADEME pour afficher les scénarios de travaux complets</p>
+
+      <div id="reno-drop" onclick="document.getElementById('reno-xml-input').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:20px;transition:all .2s">
+        <input type="file" id="reno-xml-input" accept=".xml" style="display:none" onchange="loadRenoXml(this)">
+        <div style="font-size:32px;margin-bottom:12px">📄</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME ici</div>
+        <div style="font-size:12px;color:var(--muted)">Fichier généré par LICIEL, Argos Ithaque, Climawin ou tout logiciel certifié 3CL-DPE 2021</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-reno"></div>
+      <div id="result-reno"></div>
+    </div>
+
+    <!-- PANEL : VUE 3D -->
+    <div class="panel" id="panel-view3d">
+      <h1>Vue 3D thermique</h1>
+      <p class="subtitle">Représentation du logement avec carte thermique des parois — importez un XML ADEME</p>
+
+      <div id="view3d-drop" onclick="document.getElementById('view3d-file').click()"
+        style="border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:32px;text-align:center;cursor:pointer;background:var(--surface2);margin-bottom:16px;transition:all .2s" id="drop3d">
+        <input type="file" id="view3d-file" accept=".xml,.xls,.xlsx" style="display:none" onchange="load3dFile(this.files[0])">
+        <div style="font-size:32px;margin-bottom:10px">📦</div>
+        <div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">Glissez le fichier XML ADEME</div>
+        <div style="font-size:12px;color:var(--muted)">Génère une maquette 3D orientée avec carte thermique des U-values</div>
+        <div style="margin-top:14px;display:inline-block;padding:8px 20px;border-radius:6px;background:rgba(74,222,128,.12);color:var(--accent);font-size:12px;font-family:var(--mono)">Sélectionner un fichier XML</div>
+      </div>
+
+      <div class="status" id="st-3d"></div>
+
+      <!-- Contrôles -->
+      <div id="controls3d" style="display:none;margin-bottom:12px">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Vue :</div>
+          <button onclick="setView3d('perspective')" class="btn3d active" id="btn-persp">Perspective</button>
+          <button onclick="setView3d('north')"       class="btn3d" id="btn-north">Nord</button>
+          <button onclick="setView3d('south')"       class="btn3d" id="btn-south">Sud</button>
+          <button onclick="setView3d('east')"        class="btn3d" id="btn-east">Est</button>
+          <button onclick="setView3d('west')"        class="btn3d" id="btn-west">Ouest</button>
+          <button onclick="setView3d('top')"         class="btn3d" id="btn-top">Dessus</button>
+          <div style="flex:1"></div>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-reno" onchange="toggleRenovation(this.checked)"> Voir après travaux
+          </label>
+          <label style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="toggle-xray" onchange="toggleXray(this.checked)"> Mode X-ray
+          </label>
+        </div>
+      </div>
+
+      <!-- Canvas 3D -->
+      <div id="canvas3d-wrap" style="display:none;border:1px solid var(--border);border-radius:10px;overflow:hidden;position:relative;background:#0a0a0f">
+        <canvas id="canvas3d" style="display:block;width:100%;height:500px"></canvas>
+        <!-- Légende U-values -->
+        <div id="legend3d" style="position:absolute;top:12px;right:12px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 14px;font-family:var(--mono);font-size:10px">
+          <div style="color:rgba(255,255,255,.6);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em">U-value (W/m²K)</div>
+          <div style="display:flex;flex-direction:column;gap:3px" id="legend-items"></div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:9px">Cliquez sur une paroi pour l'inspecter</div>
+        </div>
+        <!-- Info paroi au survol -->
+        <div id="tooltip3d" style="display:none;position:absolute;background:rgba(0,0,0,.85);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:11px;pointer-events:none;max-width:220px"></div>
+        <!-- Boussole -->
+        <div style="position:absolute;bottom:12px;left:12px;font-size:20px;opacity:.6">🧭</div>
+        <div id="compass-n" style="position:absolute;bottom:42px;left:22px;font-size:10px;color:rgba(255,255,255,.5);font-family:var(--mono)">N</div>
+      </div>
+
+      <!-- Stats parois -->
+      <div id="parois3d-stats" style="display:none;margin-top:16px"></div>
+    </div>
+
+    <!-- PANEL : STATS -->
+    <div class="panel" id="panel-stats">
+      <h1>Stats par ville</h1>
+      <p class="subtitle">Analyse la répartition des étiquettes DPE sur un code postal</p>
+      <div class="row">
+        <div class="field">
+          <label>Code postal</label>
+          <input type="text" id="inp-cp" value="59140" maxlength="5"
+                 onkeydown="if(event.key==='Enter')loadStats()">
+        </div>
+        <div class="field" style="max-width:160px">
+          <label>Échantillon</label>
+          <select id="inp-size">
+            <option value="100">100 DPE</option>
+            <option value="500" selected>500 DPE</option>
+            <option value="1000">1000 DPE</option>
+          </select>
+        </div>
+        <button class="btn btn-go" id="btn-stats" onclick="loadStats()">→ Analyser</button>
+      </div>
+      <div class="url-bar" id="url-stats">—</div>
+      <div class="status" id="st-stats"></div>
+      <div id="result-stats"></div>
+    </div>
+
+    <!-- PANEL : REQUÊTE LIBRE -->
+    <div class="panel" id="panel-raw">
+      <h1>Requête libre</h1>
+      <p class="subtitle">Construis ta propre requête API et explore les champs disponibles</p>
+      <div class="chips" id="raw-chips"></div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Paramètres (après /lines?)</label>
+        <input type="text" id="inp-raw"
+          value="q=75001&select=numero_dpe,etiquette_dpe,surface_habitable_logement,nom_commune_ban,type_batiment&size=10"
+          oninput="updateRawUrl()">
+      </div>
+      <div class="url-bar" id="url-raw">—</div>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <button class="btn btn-go" id="btn-raw" onclick="runRaw()">→ Exécuter</button>
+        <button class="btn btn-ghost" onclick="copyRawUrl()">⎘ Copier l'URL</button>
+      </div>
+      <div class="status" id="st-raw"></div>
+      <div id="result-raw"></div>
+    </div>
+
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
