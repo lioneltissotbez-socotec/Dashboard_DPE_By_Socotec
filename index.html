@@ -637,14 +637,39 @@ async function apiFetch(url, btnId, statusId) {
   }
 
   setStatus(statusId, 'info', '<span class="spin">↻</span> &nbsp;Requête en cours…');
+
+  async function tryFetchJson(fetchUrl, label) {
+    console.log('[DPE Explorer] fetch ' + label, fetchUrl);
+    const r = await fetch(fetchUrl, { headers: { Accept: 'application/json' } });
+    if (!r.ok) {
+      const err = new Error('HTTP ' + r.status + ' — ' + r.statusText);
+      err.status = r.status;
+      err.url = fetchUrl;
+      throw err;
+    }
+    return await r.json();
+  }
+
   try {
-    const r = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' — ' + r.statusText);
-    const d = await r.json();
-    clearStatus(statusId);
-    return d;
+    try {
+      const d = await tryFetchJson(url, 'proxy');
+      clearStatus(statusId);
+      return d;
+    } catch(eProxy) {
+      // Certains paramètres full-text/qs peuvent être refusés par le Worker Cloudflare.
+      // En cas de 403, on tente l'URL ADEME directe pour distinguer problème proxy / problème requête.
+      const canFallbackDirect = eProxy.status === 403 && url.startsWith(PROXY_BASE + '/?');
+      if (!canFallbackDirect) throw eProxy;
+
+      const directUrl = ADEME + '?' + url.split('/?')[1];
+      console.warn('[DPE Explorer] Proxy 403. Tentative ADEME directe.', { proxyUrl: url, directUrl });
+      const d = await tryFetchJson(directUrl, 'ADEME direct après 403 proxy');
+      clearStatus(statusId);
+      return d;
+    }
   } catch(e) {
-    setStatus(statusId, 'err', '✖ ' + e.message);
+    console.error('[DPE Explorer] Erreur API', e);
+    setStatus(statusId, 'err', '✖ ' + e.message + '<br><span style="font-size:11px;color:var(--muted)">Voir la console navigateur pour le détail. Si c\'est un 403 sur le proxy, le problème vient du Worker, pas forcément de l\'API ADEME.</span>');
     return null;
   } finally {
     btn.disabled = false;
@@ -1200,24 +1225,26 @@ function parseLocationInput(v) {
 
 function buildExactAddressCandidateParams(num, rue, ville, size, sort, qsFilters) {
   const loc = parseLocationInput(ville);
-  const params = {
-    // Important : on évite de mettre le numéro et la commune complète dans q.
-    // L'ADEME peut retourner 0 si q est trop précis. On récupère donc les candidats
-    // de la rue + CP, puis on filtre localement au numéro exact.
-    q: [rue, loc.cp || loc.commune].filter(Boolean).join(' '),
+  const cpOrVille = loc.cp || loc.commune || ville;
+
+  // Important v4 : on ne met PLUS de qs en recherche exacte.
+  // Le 403 observé vient du proxy lorsque q + qs sont combinés sur une recherche texte.
+  // On fait donc une recherche plein texte ADEME, puis le filtrage strict est fait côté navigateur.
+  return {
+    q: [num, rue, cpOrVille].filter(Boolean).join(' '),
     size: String(Math.max(parseInt(size || '20', 10), 100)),
     sort
   };
+}
 
-  const qsParts = [];
-  if (loc.cp) qsParts.push('code_postal_ban:' + loc.cp);
-  // On n'ajoute pas nom_commune_ban quand l'utilisateur saisit "25300 PONTARLIER" :
-  // sinon la valeur devient "25300 PONTARLIER" et exclut tout.
-  if (!loc.cp && loc.commune) qsParts.push('nom_commune_ban:"' + escapeQsValue(loc.commune) + '"');
-  if (qsFilters) qsParts.push(qsFilters);
-  if (qsParts.length) params.qs = qsParts.join(' AND ');
-
-  return params;
+function buildExactAddressFallbackParams(num, rue, ville, size, sort) {
+  const loc = parseLocationInput(ville);
+  const cpOrVille = loc.cp || loc.commune || ville;
+  return {
+    q: [rue, cpOrVille].filter(Boolean).join(' '),
+    size: String(Math.max(parseInt(size || '20', 10), 100)),
+    sort
+  };
 }
 
 function isExactAddressMatch(d, num, rue, ville) {
@@ -1297,7 +1324,7 @@ async function searchAddr() {
   console.log('Paramètres API', params);
   console.log('URL API affichée', displayUrl(params));
 
-  const data = await apiFetch(url, 'btn-addr', 'addr');
+  let data = await apiFetch(url, 'btn-addr', 'addr');
   if (!data) { console.groupEnd(); return; }
 
   console.log('Total ADEME retourné', data.total, 'résultats chargés', data.results?.length || 0);
@@ -1305,8 +1332,25 @@ async function searchAddr() {
 
   let renderData = data;
   if (exact) {
-    const before = data.results || [];
-    const filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
+    let before = data.results || [];
+    let filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
+
+    // Fallback : si la requête avec numéro ne ramène rien, on relance rue + CP, puis filtre localement.
+    if (!filtered.length) {
+      const fallbackParams = buildExactAddressFallbackParams(num, rue, ville, size, sort);
+      const fallbackUrl = buildUrl(fallbackParams);
+      console.warn('[DPE Explorer] Aucun match exact sur la première requête. Fallback rue + CP.', fallbackParams);
+      document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(fallbackParams) + '</span>';
+      const fallbackData = await apiFetch(fallbackUrl, 'btn-addr', 'addr');
+      if (fallbackData) {
+        data = fallbackData;
+        before = data.results || [];
+        console.log('Total ADEME fallback', data.total, 'résultats chargés', before.length);
+        console.table(before.slice(0, 20).map(compactDpeForLog));
+        filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
+      }
+    }
+
     console.log('Résultats après filtre local exact', filtered.length);
     console.table(filtered.map(compactDpeForLog));
 
