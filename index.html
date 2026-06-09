@@ -1496,7 +1496,7 @@ async function geocodeAddressBAN(query) {
 
 
 function escapeQsValue(v) {
-  return String(v || '').replace(/\/g, '\\').replace(/"/g, '\"').trim();
+  return String(v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
 }
 
 function titleCaseStreetForAdeme(rue) {
@@ -1508,11 +1508,11 @@ function titleCaseStreetForAdeme(rue) {
     .filter(Boolean)
     .map((w, i) => small.has(w) && i > 0 ? w : w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
-    .replace(/^rue/i, 'Rue')
-    .replace(/^avenue/i, 'Avenue')
-    .replace(/^boulevard/i, 'Boulevard')
-    .replace(/^impasse/i, 'Impasse')
-    .replace(/^chemin/i, 'Chemin');
+    .replace(/^rue\b/i, 'Rue')
+    .replace(/^avenue\b/i, 'Avenue')
+    .replace(/^boulevard\b/i, 'Boulevard')
+    .replace(/^impasse\b/i, 'Impasse')
+    .replace(/^chemin\b/i, 'Chemin');
 }
 
 function passesAdvancedFiltersLocal(d) {
