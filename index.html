@@ -292,6 +292,15 @@ tr:hover td{background:var(--surface2)}
         <button class="btn btn-go" id="btn-addr" onclick="searchAddr()" style="align-self:flex-end">→ Rechercher</button>
       </div>
 
+      <!-- Mode recherche exacte -->
+      <div style="display:flex;align-items:center;gap:10px;margin:-2px 0 14px;padding:10px 14px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.16);border-radius:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;color:var(--text);font-family:var(--mono);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="f-exact-addr" style="width:auto">
+          Recherche exacte adresse
+        </label>
+        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">Mode robuste : interroge l'ADEME puis filtre localement sur numéro + rue + CP/ville. Logs visibles dans la console.</span>
+      </div>
+
       <!-- Accordéon filtres -->
       <details id="filter-panel" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:16px;overflow:hidden">
         <summary style="padding:12px 18px;cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono);display:flex;align-items:center;gap:8px;list-style:none">
@@ -1153,30 +1162,166 @@ function buildQsFilters() {
   return parts.join(' AND ');
 }
 
+function escapeQsValue(v) {
+  return String(v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').trim();
+}
+
+function normAddr(v) {
+  return String(v || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/['’]/g, ' ')
+    .replace(/\bavenue\b/g, 'av')
+    .replace(/\bboulevard\b/g, 'bd')
+    .replace(/\bsaint\b/g, 'st')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normStreet(v) {
+  // Version souple pour comparer “rue gustave courbet” avec “Rue Gustave Courbet”.
+  return normAddr(v)
+    .replace(/\b(rue|r|route|avenue|av|boulevard|bd|chemin|impasse|place|allee|allée|cours)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractCp(v) {
+  const m = String(v || '').match(/\b\d{5}\b/);
+  return m ? m[0] : '';
+}
+
+function parseLocationInput(v) {
+  const raw = String(v || '').trim();
+  const cp = extractCp(raw);
+  const commune = raw.replace(/\b\d{5}\b/g, '').trim();
+  return { raw, cp, commune };
+}
+
+function buildExactAddressCandidateParams(num, rue, ville, size, sort, qsFilters) {
+  const loc = parseLocationInput(ville);
+  const params = {
+    // Important : on évite de mettre le numéro et la commune complète dans q.
+    // L'ADEME peut retourner 0 si q est trop précis. On récupère donc les candidats
+    // de la rue + CP, puis on filtre localement au numéro exact.
+    q: [rue, loc.cp || loc.commune].filter(Boolean).join(' '),
+    size: String(Math.max(parseInt(size || '20', 10), 100)),
+    sort
+  };
+
+  const qsParts = [];
+  if (loc.cp) qsParts.push('code_postal_ban:' + loc.cp);
+  // On n'ajoute pas nom_commune_ban quand l'utilisateur saisit "25300 PONTARLIER" :
+  // sinon la valeur devient "25300 PONTARLIER" et exclut tout.
+  if (!loc.cp && loc.commune) qsParts.push('nom_commune_ban:"' + escapeQsValue(loc.commune) + '"');
+  if (qsFilters) qsParts.push(qsFilters);
+  if (qsParts.length) params.qs = qsParts.join(' AND ');
+
+  return params;
+}
+
+function isExactAddressMatch(d, num, rue, ville) {
+  const nNum = normAddr(num);
+  const nRue = normStreet(rue);
+  const loc = parseLocationInput(ville);
+  const cpWanted = loc.cp;
+  const villeWanted = normAddr(loc.commune || loc.raw);
+
+  const dNum = normAddr(d.numero_voie_ban || '');
+  const dRue = normStreet(d.nom_rue_ban || '');
+  const dCp  = String(d.code_postal_ban || d.code_postal_brut || '');
+  const dVille = normAddr(d.nom_commune_ban || d.nom_commune_brut || '');
+  const dAdr = normAddr(d.adresse_brut || d.adresse_ban || d.adresse_complete_brut || '');
+  const dAdrStreet = normStreet(d.adresse_brut || d.adresse_ban || d.adresse_complete_brut || '');
+
+  const numOk = !nNum || dNum === nNum || dAdr.startsWith(nNum + ' ');
+  const rueOk = !nRue || dRue === nRue || dRue.includes(nRue) || dAdrStreet.includes(nRue);
+  const locOk = cpWanted ? dCp === cpWanted : (!villeWanted || dVille === villeWanted || dVille.includes(villeWanted));
+
+  return numOk && rueOk && locOk;
+}
+
+function compactDpeForLog(d) {
+  return {
+    numero_dpe: d.numero_dpe,
+    adresse_brut: d.adresse_brut,
+    adresse_ban: d.adresse_ban,
+    adresse_complete_brut: d.adresse_complete_brut,
+    numero_voie_ban: d.numero_voie_ban,
+    nom_rue_ban: d.nom_rue_ban,
+    code_postal_ban: d.code_postal_ban,
+    nom_commune_ban: d.nom_commune_ban,
+    score_ban: d.score_ban,
+    statut_geocodage: d.statut_geocodage,
+    etiquette_dpe: d.etiquette_dpe,
+    surface_habitable_logement: d.surface_habitable_logement
+  };
+}
+
 async function searchAddr() {
   const num   = document.getElementById('inp-num').value.trim();
   const rue   = document.getElementById('inp-rue').value.trim();
   const ville = document.getElementById('inp-ville').value.trim();
   const size  = document.getElementById('inp-addr-size').value;
   const sort  = document.getElementById('f-sort').value;
+  const exact = document.getElementById('f-exact-addr')?.checked;
 
   if (!rue && !ville && !num) {
     setStatus('addr', 'err', '⚠ Renseignez au moins une ville ou une rue.');
     return;
   }
 
+  const qsFilters = buildQsFilters();
   const q = [num, rue, ville].filter(Boolean).join(' ');
-  const params = { q, size, sort };
+  let params = { size, sort };
 
-  const qs = buildQsFilters();
-  if (qs) params.qs = qs;
+  if (exact) {
+    if (!num || !rue || !ville) {
+      setStatus('addr', 'err', '⚠ En recherche exacte, renseignez le numéro, la rue et la ville ou le code postal.');
+      return;
+    }
+
+    // Recherche exacte robuste : requête volontairement large sur la rue + CP,
+    // puis filtrage local strict sur numéro + rue + CP/ville.
+    params = buildExactAddressCandidateParams(num, rue, ville, size, sort, qsFilters);
+  } else {
+    params.q = q;
+    if (qsFilters) params.qs = qsFilters;
+  }
 
   const url = buildUrl(params);
   document.getElementById('url-addr').innerHTML = 'GET &nbsp;<span>' + displayUrl(params) + '</span>';
 
+  console.groupCollapsed('[DPE Explorer] Recherche adresse' + (exact ? ' exacte' : ''));
+  console.log('Saisie utilisateur', { numero: num, rue: rue, ville: ville, exact: exact });
+  console.log('Paramètres API', params);
+  console.log('URL API affichée', displayUrl(params));
+
   const data = await apiFetch(url, 'btn-addr', 'addr');
-  if (!data) return;
-  renderAddrResults(data, q);
+  if (!data) { console.groupEnd(); return; }
+
+  console.log('Total ADEME retourné', data.total, 'résultats chargés', data.results?.length || 0);
+  console.table((data.results || []).slice(0, 20).map(compactDpeForLog));
+
+  let renderData = data;
+  if (exact) {
+    const before = data.results || [];
+    const filtered = before.filter(d => isExactAddressMatch(d, num, rue, ville));
+    console.log('Résultats après filtre local exact', filtered.length);
+    console.table(filtered.map(compactDpeForLog));
+
+    renderData = Object.assign({}, data, {
+      total: filtered.length,
+      results: filtered.slice(0, parseInt(size || '20', 10)),
+      _exactSearch: true,
+      _exactBeforeCount: before.length,
+      _exactInput: { num, rue, ville },
+      _exactCandidates: before.slice(0, 8).map(compactDpeForLog)
+    });
+  }
+
+  console.groupEnd();
+  renderAddrResults(renderData, q);
 }
 
 function renderAddrResults(data, query) {
@@ -1185,7 +1330,16 @@ function renderAddrResults(data, query) {
   const total = data.total || 0;
 
   if (!res.length) {
-    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.</div>';
+    let diag = '';
+    if (data._exactSearch) {
+      diag = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;line-height:1.7">'
+        + '<strong style="color:var(--accent2)">Diagnostic recherche exacte</strong><br>'
+        + 'L\'API a retourné ' + (data._exactBeforeCount || 0) + ' candidat(s), mais aucun ne correspond strictement à : '
+        + '<span style="color:var(--text)">' + data._exactInput.num + ' ' + data._exactInput.rue + ' ' + data._exactInput.ville + '</span>.<br>'
+        + 'Ouvre la console navigateur : un tableau affiche les champs ADEME/BAN reçus.'
+        + '</div>';
+    }
+    el.innerHTML = '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px;color:var(--muted);font-family:var(--mono);font-size:13px">Aucun DPE trouvé pour cette adresse.' + diag + '</div>';
     return;
   }
 
@@ -1205,6 +1359,7 @@ function renderAddrResults(data, query) {
   let html = '<div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px">'
     + '<span style="color:var(--accent);font-weight:600">' + total.toLocaleString('fr-FR') + '</span>'
     + ' DPE trouvés · ' + res.length + ' affichés'
+    + (data._exactSearch ? ' · <span style="color:var(--accent2)">mode exact local</span>' : '')
     + '</div>';
 
   html += '<div style="display:flex;flex-direction:column;gap:10px">';
@@ -1890,7 +2045,7 @@ function _finishLoad3d(fname, data) {
   const elCtrl  = document.getElementById('controls3d');
   const elWrap  = document.getElementById('canvas3d-wrap');
   const elStats = document.getElementById('parois3d-stats');
-  const elDrop  = document.getElementById('drop3d');
+  const elDrop  = document.getElementById('view3d-drop');
   if (elCtrl)  elCtrl.style.display  = 'flex';
   if (elWrap)  elWrap.style.display  = 'block';
   if (elStats) elStats.style.display = 'block';
@@ -2029,7 +2184,7 @@ function load3dXml(input) {
       const elCtrl  = document.getElementById('controls3d');
       const elWrap  = document.getElementById('canvas3d-wrap');
       const elStats = document.getElementById('parois3d-stats');
-      const elDrop  = document.getElementById('drop3d');
+      const elDrop  = document.getElementById('view3d-drop');
 
       if (elCtrl)  elCtrl.style.display  = 'flex';
       if (elWrap)  elWrap.style.display  = 'block';
@@ -2298,26 +2453,40 @@ function addLabel3d(text, x, y, z, color, size) {
   scene3d.add(sp);
 }
 
+
 function buildLegend3d() {
   const wrap = document.getElementById('legend-items');
   if (!wrap) return;
-  const legendItems = [
-    { u:'≤ 0.20', label:'Très bien (RE2020)', U:0.10 },
-    { u:'≤ 0.40', label:'Bien (BBC/RT2012)',  U:0.30 },
-    { u:'≤ 0.70', label:'Acceptable',          U:0.55 },
-    { u:'≤ 1.20', label:'Insuffisant',         U:0.95 },
-    { u:'≤ 2.00', label:'Mauvais',             U:1.60 },
-    { u:'> 2.00', label:'Très mauvais',        U:2.50 },
+
+  const rows = [
+    { label:'≤ 0.20', txt:'Très performant', U:0.20 },
+    { label:'0.20 – 0.40', txt:'Bon', U:0.35 },
+    { label:'0.40 – 0.70', txt:'Moyen', U:0.55 },
+    { label:'0.70 – 1.20', txt:'Faible', U:0.95 },
+    { label:'1.20 – 2.00', txt:'Mauvais', U:1.60 },
+    { label:'> 2.00', txt:'Très mauvais', U:2.50 },
+    { label:'—', txt:'Non renseigné', U:null },
   ];
-  wrap.innerHTML = legendItems.map(item => {
-    const c = uToColor(item.U);
-    const hex = '#' + [c.r,c.g,c.b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
-      '<div style="width:14px;height:8px;border-radius:2px;background:' + hex + '"></div>' +
-      '<span style="color:rgba(255,255,255,.75);font-size:10px">' + item.u + ' – ' + item.label + '</span></div>';
-  }).join('') +
-  '<div style="margin-top:6px;font-size:9px;color:rgba(255,255,255,.35);font-family:var(--mono)">W/m²K · seuils RT2012/RE2020</div>';
+
+  wrap.innerHTML = rows.map(r => {
+    let color = '#334455';
+    if (r.U !== null) {
+      const c = uToColor(r.U);
+      color = '#' + [c.r, c.g, c.b]
+        .map(v => Math.round(v * 255).toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    return '<div style="display:grid;grid-template-columns:48px 1fr;gap:8px;align-items:center">' +
+      '<div style="height:10px;border-radius:5px;background:' + color + ';border:1px solid rgba(255,255,255,.18)"></div>' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;white-space:nowrap">' +
+        '<span style="color:rgba(255,255,255,.72)">' + r.label + '</span>' +
+        '<span style="color:rgba(255,255,255,.42)">' + r.txt + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
+
 
 function setupRaycaster3d() {
   const canvas  = document.getElementById('canvas3d');
