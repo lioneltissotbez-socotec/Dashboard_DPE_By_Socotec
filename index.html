@@ -1452,9 +1452,14 @@ function dpeMarkerColor(e) {
 
 async function fetchJsonSmart(params) {
   const urls = [];
+  const direct = displayUrl(params);
   const proxied = buildUrl(params);
+
+  // Important : certaines requêtes DataFair avec qs sont refusées par le proxy
+  // alors que l'API ADEME directe les accepte. On tente donc l'ADEME direct en premier.
+  urls.push({ label:'ademe-direct', url: direct });
   if (proxied) urls.push({ label:'proxy', url: proxied });
-  urls.push({ label:'ademe-direct', url: displayUrl(params) });
+
   let lastErr = null;
   for (const u of urls) {
     try {
@@ -1478,7 +1483,15 @@ async function geocodeAddressBAN(query) {
   const data = await r.json();
   const f = data.features && data.features[0];
   if (!f) throw new Error('Adresse introuvable dans la BAN');
-  return { label: f.properties.label, score: f.properties.score, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], postcode: f.properties.postcode || extractCpFromInput(query), city: f.properties.city || cleanCityFromInput(query) };
+  return {
+    label: f.properties.label,
+    score: f.properties.score,
+    lon: f.geometry.coordinates[0],
+    lat: f.geometry.coordinates[1],
+    postcode: f.properties.postcode || extractCpFromInput(query),
+    city: f.properties.city || cleanCityFromInput(query),
+    banId: f.properties.id || ''
+  };
 }
 
 function passesAdvancedFiltersLocal(d) {
@@ -1521,11 +1534,21 @@ async function searchAddrNearbyMap(num, rue, ville, size, sort) {
   try {
     const center = await geocodeAddressBAN(fullAddress);
     console.log('Adresse BAN retenue', center);
+    const effectiveCp = cp || center.postcode || '';
+    const effectiveCity = center.city || cleanCityFromInput(ville);
+
+    // Stratégie robuste :
+    // 1) identifiant BAN exact si disponible : c'est le meilleur lien entre BAN et ADEME.
+    // 2) tous les DPE du code postal, puis filtrage local par distance GPS.
+    // 3) recherches texte de secours.
+    // On évite de limiter à 500/1000 résultats, sinon les DPE plus anciens sont noyés dans les résultats récents.
     const attempts = [
-      { q: streetCpQuery, size:'500', sort },
-      { q: [rue, center.city || cleanCityFromInput(ville)].filter(Boolean).join(' '), size:'500', sort },
-      { q: cp || center.postcode || ville, size:'1000', sort }
-    ];
+      center.banId ? { qs: 'identifiant_ban:' + center.banId, size:'10000' } : null,
+      effectiveCp ? { qs: 'code_postal_ban:' + effectiveCp, size:'10000' } : null,
+      effectiveCp ? { q: effectiveCp, size:'10000' } : null,
+      { q: [rue, effectiveCity].filter(Boolean).join(' '), size:'10000' },
+      { q: streetCpQuery, size:'10000' }
+    ].filter(Boolean);
     const seen = new Set();
     let candidates = [];
     for (const params of attempts) {
@@ -1570,7 +1593,7 @@ function renderDpeMap(results, center, radius) {
   if (info) info.textContent = results.length + ' DPE dans ' + radius + ' m · ' + center.label;
   if (!addrLeafletMap) {
     addrLeafletMap = L.map('addr-map', { zoomControl:true, scrollWheelZoom:true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:20, attribution:'&copy; OpenStreetMap' }).addTo(addrLeafletMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19, attribution:'&copy; OpenStreetMap' }).addTo(addrLeafletMap);
   }
   if (addrLeafletLayer) addrLeafletLayer.clearLayers();
   addrLeafletLayer = L.layerGroup().addTo(addrLeafletMap);
